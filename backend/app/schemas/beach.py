@@ -13,6 +13,7 @@ class FishingPointResponse(BaseModel):
     accessibility: str
     access_notes: str | None = None
     risk_notes: str | None = None
+    is_active: bool
 
 
 class BeachSummary(BaseModel):
