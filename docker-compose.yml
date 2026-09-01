@@ -39,11 +39,13 @@ services:
       neo4j:
         condition: service_healthy
     entrypoint: ["/bin/bash", "-c"]
-    command: >
-      cypher-shell -a bolt://neo4j:7687
-      -u ${NEO4J_USER:-neo4j}
-      -p ${NEO4J_PASSWORD:-surfcasting_dev}
-      -f /scripts/001_fishing_recommendation.cypher
+    command: |
+      set -e
+      until cypher-shell -a bolt://neo4j:7687 -u ${NEO4J_USER:-neo4j} -p ${NEO4J_PASSWORD:-surfcasting_dev} "RETURN 1" >/dev/null 2>&1; do
+        echo "Aguardando Bolt do Neo4j..."
+        sleep 2
+      done
+      cypher-shell -a bolt://neo4j:7687 -u ${NEO4J_USER:-neo4j} -p ${NEO4J_PASSWORD:-surfcasting_dev} -f /scripts/001_fishing_recommendation.cypher
     volumes:
       - ./database/neo4j:/scripts:ro
     restart: "no"
