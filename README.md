@@ -2,7 +2,7 @@
 
 Base arquitetural da plataforma **Surfcasting Região dos Lagos**, um portal mobile-first para telemetria oceanográfica, conhecimento técnico e comunidade de pesca de praia.
 
-Esta primeira entrega inicializa o back-end em FastAPI e contém:
+O projeto já possui uma base executável em FastAPI com:
 
 - esquema relacional MySQL 8 para usuários, praias, pontos de pesca e posts;
 - modelo inicial de recomendações em Neo4j/Cypher;
@@ -11,6 +11,11 @@ Esta primeira entrega inicializa o back-end em FastAPI e contém:
 - endpoint REST e utilitário de linha de comando;
 - testes automatizados do algoritmo e dos tratamentos de JSON;
 - ambiente local opcional com Docker Compose.
+- persistência MySQL com SQLAlchemy 2;
+- cadastro, login OAuth2 e access tokens JWT;
+- senhas protegidas com Argon2 e controle RBAC;
+- CRUD administrativo de praias e consulta pública somente das publicadas.
+- integração contínua no GitHub Actions para validar sintaxe e testes.
 
 ## Arquitetura inicial
 
@@ -30,6 +35,8 @@ O MySQL é a fonte oficial de usuários, conteúdo e locais. O Neo4j armazena re
 ## Estrutura
 
 A árvore comentada do back-end está em [`docs/backend-structure.md`](docs/backend-structure.md).
+
+A configuração de autenticação e os exemplos do CRUD estão em [`docs/auth-and-beaches.md`](docs/auth-and-beaches.md).
 
 Os scripts de banco estão em:
 
@@ -57,7 +64,24 @@ No Windows PowerShell, ative o ambiente com:
 
 Depois, abra `http://localhost:8000/docs`.
 
-As variáveis `OPENWEATHER_API_KEY` e `STORMGLASS_API_KEY` precisam ser preenchidas no arquivo `.env`. As chaves não devem ser enviadas ao GitHub.
+As variáveis `OPENWEATHER_API_KEY`, `STORMGLASS_API_KEY` e `JWT_SECRET_KEY` precisam ser preenchidas no arquivo `.env`. As chaves não devem ser enviadas ao GitHub.
+
+### Autenticação e praias
+
+```http
+POST /api/v1/auth/register
+POST /api/v1/auth/token
+GET  /api/v1/auth/me
+
+GET    /api/v1/beaches
+GET    /api/v1/beaches/{slug}
+GET    /api/v1/admin/beaches
+POST   /api/v1/admin/beaches
+PATCH  /api/v1/admin/beaches/{id}
+DELETE /api/v1/admin/beaches/{id}
+```
+
+As rotas `/admin` exigem um token de administrador. O script `backend/scripts/create_admin.py` cria o primeiro usuário administrativo sem expor a senha no terminal.
 
 ### Endpoint do Score
 
