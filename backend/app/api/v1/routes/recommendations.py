@@ -31,9 +31,15 @@ def recommendations(
     return {
         "beach_slug": beach_slug,
         "recommendations": [
-            {"species": item.species, "relevance": item.relevance} for item in items
+            {
+                "species": item.species,
+                "relevance": item.relevance,
+                "technique": item.technique,
+                "equipment": list(item.equipment),
+            }
+            for item in items
         ],
         "explanation": (
-            "Resultado derivado das relações entre praia, vento, temperatura da água, maré e espécie no Neo4j."
+            "Resultado derivado das relações entre praia, vento, água, maré, espécie, técnica e equipamento no Neo4j."
         ),
     }
