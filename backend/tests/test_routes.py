@@ -10,6 +10,7 @@ def test_expected_routes_are_registered() -> None:
     assert "/api/v1/beaches" in paths
     assert "/api/v1/admin/beaches" in paths
     assert "/api/v1/fishing-score" in paths
+    assert "/api/v1/forecast" in paths
     assert "/api/v1/beaches/{beach_slug}/points" in paths
     assert "/api/v1/admin/beaches/{beach_id}/points" in paths
     assert "/api/v1/admin/points/{point_id}" in paths
