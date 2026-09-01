@@ -19,6 +19,17 @@ def enforce_score_rate_limit(request: Request) -> None:
         raise RateLimitExceededError("Muitas consultas de score. Tente novamente em um minuto.")
 
 
+def enforce_telemetry_rate_limit(request: Request) -> None:
+    settings = get_settings()
+    if not public_rate_limiter.allow(
+        _client_key(request, "score"),
+        limit=settings.score_rate_limit_per_minute,
+    ):
+        raise RateLimitExceededError(
+            "Muitas consultas de dados oceanográficos. Tente novamente em um minuto."
+        )
+
+
 def enforce_auth_rate_limit(request: Request) -> None:
     settings = get_settings()
     if not public_rate_limiter.allow(
