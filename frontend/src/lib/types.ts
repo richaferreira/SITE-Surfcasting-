@@ -55,6 +55,36 @@ export type FishingScore = {
   cached: boolean;
 };
 
+export type MarineForecastHour = {
+  observed_at: string;
+  wave_height_m: number | null;
+  wave_period_s: number | null;
+  water_temperature_c: number | null;
+  wind_speed_mps: number | null;
+  wind_direction_deg: number | null;
+  pressure_hpa: number | null;
+};
+
+export type TideExtreme = {
+  occurs_at: string;
+  extreme_type: "high" | "low";
+  height_m: number | null;
+};
+
+export type MarineForecast = {
+  generated_at: string;
+  source: string;
+  hours: MarineForecastHour[];
+  tides: TideExtreme[];
+  warnings: string[];
+  data_quality: {
+    hours_requested: number;
+    hours_returned: number;
+    complete_hours: number;
+    coverage_percentage: number;
+  };
+};
+
 export type AcademyPostSummary = {
   id: number;
   title: string;
