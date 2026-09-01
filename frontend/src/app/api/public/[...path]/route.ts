@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { API_BASE_URL } from "@/lib/api";
 
-const allowedRoots = new Set(["beaches", "fishing-score", "academy", "community", "ads"]);
+const allowedRoots = new Set(["beaches", "fishing-score", "forecast", "academy", "community", "ads"]);
 
 export async function GET(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const { path } = await context.params;
