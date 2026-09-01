@@ -1,3 +1,4 @@
+import BeachMap from "../../../components/BeachMap";
 import SiteHeader from "../../../components/SiteHeader";
 import { serverApi } from "../../../lib/api";
 
@@ -47,8 +48,25 @@ type Score = {
   warnings: string[];
 };
 
+type ForecastHour = {
+  at: string;
+  score: number;
+  label: string;
+  wind_speed_mps: number | null;
+  wind_direction_deg: number | null;
+  wind_is_offshore: boolean | null;
+  tide_trend: string;
+  wave_height_m: number | null;
+  wave_period_s: number | null;
+  water_temperature_c: number | null;
+  pressure_hpa: number | null;
+  moon_phase: string;
+};
+
+type ForecastResponse = { generated_at: string; hours: ForecastHour[] };
+
 type RecommendationPayload = {
-  recommendations: { species: string; relevance: number }[];
+  recommendations: { species: string; relevance: number; technique?: string | null; equipment?: string[] }[];
   explanation: string;
 };
 
@@ -66,12 +84,18 @@ export default async function BeachPage({ params }: { params: Promise<{ slug: st
     );
   }
 
-  const scoreParams = new URLSearchParams({
+  const baseParams = new URLSearchParams({
     latitude: String(beach.latitude),
     longitude: String(beach.longitude),
     sea_bearing_deg: String(beach.sea_bearing_deg),
   });
-  const score = await serverApi<Score>(`/api/v1/fishing-score?${scoreParams.toString()}`);
+  const forecastParams = new URLSearchParams(baseParams);
+  forecastParams.set("hours", "24");
+
+  const [score, forecast] = await Promise.all([
+    serverApi<Score>(`/api/v1/fishing-score?${baseParams.toString()}`),
+    serverApi<ForecastResponse>(`/api/v1/forecast?${forecastParams.toString()}`),
+  ]);
 
   let recommendation: RecommendationPayload | null = null;
   if (
@@ -115,7 +139,33 @@ export default async function BeachPage({ params }: { params: Promise<{ slug: st
           <article className="metricCard"><span>Maré</span><strong>{c?.tide_trend?.replaceAll("_", " ") ?? "--"}</strong><small>Lua {c?.moon_phase ?? "--"}</small></article>
         </div>
 
-        <div className="twoColumn">
+        <article className="panel mapPanel">
+          <div className="panelHeading"><div><span className="eyebrow">Mapa interativo</span><h2>Praia e spots cadastrados</h2></div><span>{beach.points.length} ponto(s)</span></div>
+          <BeachMap beach={{ name: beach.name, latitude: beach.latitude, longitude: beach.longitude }} points={beach.points} />
+        </article>
+
+        <article className="panel forecastPanel">
+          <div className="panelHeading"><div><span className="eyebrow">Próximas horas</span><h2>Janela de pesca</h2></div><span>{forecast?.hours.length ?? 0} leituras</span></div>
+          {forecast?.hours.length ? (
+            <div className="forecastScroller">
+              {forecast.hours.map((hour) => (
+                <div className="forecastCard" key={hour.at}>
+                  <time>{new Date(hour.at).toLocaleString("pt-BR", { weekday: "short", hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" })}</time>
+                  <strong>{hour.score}<small>/100</small></strong>
+                  <span>{hour.label}</span>
+                  <dl>
+                    <div><dt>Vento</dt><dd>{value(hour.wind_speed_mps, " m/s")}</dd></div>
+                    <div><dt>Ondas</dt><dd>{value(hour.wave_height_m, " m")}</dd></div>
+                    <div><dt>Período</dt><dd>{value(hour.wave_period_s, " s")}</dd></div>
+                    <div><dt>Maré</dt><dd>{hour.tide_trend}</dd></div>
+                  </dl>
+                </div>
+              ))}
+            </div>
+          ) : <p className="muted">A previsão horária aparece quando a chave Stormglass está configurada e o provedor retorna dados para a região.</p>}
+        </article>
+
+        <div className="twoColumn beachInfoColumns">
           <article className="panel">
             <span className="eyebrow">Pontos cadastrados</span>
             <h2>Leitura da praia</h2>
@@ -138,8 +188,10 @@ export default async function BeachPage({ params }: { params: Promise<{ slug: st
             {recommendation?.recommendations.length ? (
               <div className="stackList">
                 {recommendation.recommendations.map((item) => (
-                  <div className="listItem compactItem" key={item.species}>
-                    <strong>{item.species}</strong><span>Relevância {item.relevance.toFixed(2)}</span>
+                  <div className="listItem recommendationItem" key={`${item.species}-${item.technique ?? "geral"}`}>
+                    <div><strong>{item.species}</strong><span>Relevância {item.relevance.toFixed(2)}</span></div>
+                    {item.technique ? <p>Técnica: {item.technique}</p> : null}
+                    {item.equipment?.length ? <small>Equipamento: {item.equipment.join(" · ")}</small> : null}
                   </div>
                 ))}
               </div>
