@@ -9,16 +9,20 @@ class BeachRepository:
         self.session = session
 
     def get_by_id(self, beach_id: int) -> Beach | None:
-        return self.session.get(Beach, beach_id)
+        return self.session.scalar(
+            select(Beach).where(Beach.id == beach_id, Beach.deleted_at.is_(None))
+        )
 
     def get_by_slug(self, slug: str, published_only: bool = False) -> Beach | None:
-        statement = select(Beach).where(Beach.slug == slug)
+        statement = select(Beach).where(Beach.slug == slug, Beach.deleted_at.is_(None))
         if published_only:
             statement = statement.where(Beach.is_published.is_(True))
         return self.session.scalar(statement)
 
     def list(self, offset: int, limit: int, published_only: bool) -> tuple[list[Beach], int]:
-        filters = [Beach.is_published.is_(True)] if published_only else []
+        filters = [Beach.deleted_at.is_(None)]
+        if published_only:
+            filters.append(Beach.is_published.is_(True))
         items_statement = (
             select(Beach)
             .where(*filters)
@@ -32,16 +36,23 @@ class BeachRepository:
         return items, total
 
     def add(self, beach: Beach, latitude: float, longitude: float) -> Beach:
-        beach.location = func.ST_SRID(func.POINT(longitude, latitude), 4326)
+        beach.location = self._location_expression(latitude, longitude)
         self.session.add(beach)
         self.session.flush()
         return beach
 
     def update_location(self, beach: Beach) -> None:
-        beach.location = func.ST_SRID(
-            func.POINT(float(beach.longitude), float(beach.latitude)),
-            4326,
+        beach.location = self._location_expression(
+            float(beach.latitude),
+            float(beach.longitude),
         )
 
-    def delete(self, beach: Beach) -> None:
-        self.session.delete(beach)
+    @staticmethod
+    def _location_expression(latitude: float, longitude: float):
+        wkt = f"POINT({longitude:.8f} {latitude:.8f})"
+        return func.ST_GeomFromText(wkt, 4326, "axis-order=long-lat")
+
+    def archive(self, beach: Beach, actor_id: int) -> None:
+        beach.is_published = False
+        beach.deleted_at = func.utc_timestamp()
+        beach.deleted_by_id = actor_id

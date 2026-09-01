@@ -67,6 +67,8 @@ CREATE TABLE IF NOT EXISTS praias (
     beach_profile ENUM('TOMBO', 'INTERMEDIARIA', 'RASA', 'ABRIGADA') NOT NULL,
     accessibility_summary VARCHAR(500) NULL,
     is_published BOOLEAN NOT NULL DEFAULT FALSE,
+    deleted_at DATETIME NULL,
+    deleted_by BIGINT UNSIGNED NULL,
     created_by BIGINT UNSIGNED NOT NULL,
     updated_by BIGINT UNSIGNED NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -79,8 +81,10 @@ CREATE TABLE IF NOT EXISTS praias (
         FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE RESTRICT,
     CONSTRAINT fk_praias_updated_by
         FOREIGN KEY (updated_by) REFERENCES users (id) ON DELETE SET NULL,
+    CONSTRAINT fk_praias_deleted_by
+        FOREIGN KEY (deleted_by) REFERENCES users (id) ON DELETE SET NULL,
     SPATIAL INDEX spx_praias_location (location),
-    INDEX idx_praias_city_published (city, is_published)
+    INDEX idx_praias_city_published (city, is_published, deleted_at)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS pontos_pesca (
@@ -105,7 +109,7 @@ CREATE TABLE IF NOT EXISTS pontos_pesca (
     CONSTRAINT chk_pontos_latitude CHECK (latitude BETWEEN -90 AND 90),
     CONSTRAINT chk_pontos_longitude CHECK (longitude BETWEEN -180 AND 180),
     CONSTRAINT fk_pontos_praia
-        FOREIGN KEY (praia_id) REFERENCES praias (id) ON DELETE CASCADE,
+        FOREIGN KEY (praia_id) REFERENCES praias (id) ON DELETE RESTRICT,
     CONSTRAINT fk_pontos_created_by
         FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE RESTRICT,
     SPATIAL INDEX spx_pontos_location (location),

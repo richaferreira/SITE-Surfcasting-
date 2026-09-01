@@ -13,7 +13,9 @@ from app.models.enums import RoleCode
 from app.models.user import User
 from app.repositories.user import UserRepository
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
+oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl=f"{get_settings().api_v1_prefix}/auth/token",
+)
 
 
 def get_current_user(

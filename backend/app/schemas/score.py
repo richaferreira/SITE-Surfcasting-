@@ -16,11 +16,19 @@ class ConditionsResponse(BaseModel):
     moon_phase: str
 
 
+class DataQualityResponse(BaseModel):
+    is_sufficient: bool
+    confidence_percentage: int = Field(ge=0, le=100)
+    available_components: list[str]
+    missing_components: list[str]
+
+
 class FishingScoreResponse(BaseModel):
-    score: int = Field(ge=0, le=100)
+    score: int | None = Field(default=None, ge=0, le=100)
     label: str
     calculated_at: datetime
     conditions: ConditionsResponse
     breakdown: dict[str, float]
     reasons: list[str]
     warnings: list[str]
+    data_quality: DataQualityResponse

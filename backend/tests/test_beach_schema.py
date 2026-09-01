@@ -2,7 +2,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.models.enums import BeachProfile
-from app.schemas.beach import BeachCreate, BeachUpdate
+from app.schemas.beach import BeachCreate, BeachUpdate, PublicBeachResponse
 from app.utils.slug import slugify
 
 
@@ -45,3 +45,26 @@ def test_empty_beach_update_is_rejected() -> None:
 def test_non_nullable_update_field_rejects_explicit_null() -> None:
     with pytest.raises(ValidationError):
         BeachUpdate(name=None)
+
+
+@pytest.mark.parametrize("field", ["name", "city"])
+def test_required_text_is_validated_after_trimming(field: str) -> None:
+    values = {
+        "name": "Praia válida",
+        "city": "Saquarema",
+        "latitude": -22.93,
+        "longitude": -42.49,
+        "sea_bearing_deg": 160,
+        "beach_profile": BeachProfile.TOMBO,
+    }
+    values[field] = "   "
+    with pytest.raises(ValidationError):
+        BeachCreate(**values)
+
+
+def test_public_beach_schema_does_not_expose_audit_fields() -> None:
+    assert "created_by_id" not in PublicBeachResponse.model_fields
+    assert "updated_by_id" not in PublicBeachResponse.model_fields
+    assert "created_at" not in PublicBeachResponse.model_fields
+    assert "updated_at" not in PublicBeachResponse.model_fields
+    assert "is_published" not in PublicBeachResponse.model_fields

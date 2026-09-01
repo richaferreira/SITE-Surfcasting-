@@ -88,12 +88,36 @@ class FishingScoreService:
         )
         result = calculate_fishing_score(conditions)
 
+        component_values = {
+            "wind": wind_speed is not None and wind_direction is not None,
+            "tide": tide_trend is not TideTrend.UNKNOWN,
+            "wave_height": marine is not None and marine.wave_height_m is not None,
+            "wave_period": marine is not None and marine.wave_period_s is not None,
+            "water_temperature": marine is not None and marine.water_temperature_c is not None,
+            "pressure": pressure is not None,
+        }
+        available_components = [name for name, available in component_values.items() if available]
+        missing_components = [name for name, available in component_values.items() if not available]
+        essential_components = {"tide", "wave_height", "wave_period"}
+        is_sufficient = essential_components.issubset(available_components)
+        confidence_percentage = round(len(available_components) / len(component_values) * 100)
+
+        score_payload = result.as_dict()
+        if not is_sufficient:
+            score_payload["score"] = None
+            score_payload["label"] = "dados insuficientes"
+            score_payload["reasons"] = [
+                "Dados oceânicos essenciais estão ausentes; o score foi suspenso "
+                "para evitar uma recomendação enganosa.",
+                *result.reasons,
+            ]
+
         offshore = None
         if wind_direction is not None:
             offshore = is_offshore_wind(wind_direction, sea_bearing_deg)
 
         return {
-            **result.as_dict(),
+            **score_payload,
             "calculated_at": moment,
             "conditions": {
                 "wind_speed_mps": wind_speed,
@@ -108,4 +132,10 @@ class FishingScoreService:
                 "moon_phase": phase.value,
             },
             "warnings": warnings,
+            "data_quality": {
+                "is_sufficient": is_sufficient,
+                "confidence_percentage": confidence_percentage,
+                "available_components": available_components,
+                "missing_components": missing_components,
+            },
         }

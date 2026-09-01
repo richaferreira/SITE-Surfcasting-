@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Enum as SAEnum, ForeignKey, LargeBinary, String, Text
+from sqlalchemy import Boolean, DateTime, Enum as SAEnum, ForeignKey, String, Text
 from sqlalchemy.dialects import mysql
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 from app.models.enums import BeachProfile
 from app.models.mixins import TimestampMixin
+from app.models.spatial import MySQLPoint
 
 if TYPE_CHECKING:
     from app.models.user import User
@@ -26,7 +28,7 @@ class Beach(TimestampMixin, Base):
     description: Mapped[str | None] = mapped_column(Text)
     latitude: Mapped[Decimal] = mapped_column(mysql.DECIMAL(9, 6), nullable=False)
     longitude: Mapped[Decimal] = mapped_column(mysql.DECIMAL(9, 6), nullable=False)
-    location: Mapped[bytes] = mapped_column(LargeBinary, nullable=False, deferred=True)
+    location: Mapped[bytes] = mapped_column(MySQLPoint(4326), nullable=False, deferred=True)
     sea_bearing_deg: Mapped[Decimal] = mapped_column(mysql.DECIMAL(5, 2), nullable=False)
     beach_profile: Mapped[BeachProfile] = mapped_column(
         SAEnum(
@@ -38,6 +40,12 @@ class Beach(TimestampMixin, Base):
     )
     accessibility_summary: Mapped[str | None] = mapped_column(String(500))
     is_published: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime)
+    deleted_by_id: Mapped[int | None] = mapped_column(
+        "deleted_by",
+        mysql.BIGINT(unsigned=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+    )
     created_by_id: Mapped[int] = mapped_column(
         "created_by",
         mysql.BIGINT(unsigned=True),
@@ -58,3 +66,4 @@ class Beach(TimestampMixin, Base):
         back_populates="beaches_updated",
         foreign_keys=[updated_by_id],
     )
+    deleted_by_user: Mapped[User | None] = relationship(foreign_keys=[deleted_by_id])

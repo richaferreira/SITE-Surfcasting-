@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -25,7 +25,7 @@ class Settings(BaseSettings):
 
     jwt_secret_key: str = ""
     jwt_algorithm: Literal["HS256"] = "HS256"
-    jwt_access_token_expire_minutes: int = 30
+    jwt_access_token_expire_minutes: int = Field(default=30, gt=0, le=1440)
     jwt_issuer: str = "surfcasting-regiao-dos-lagos"
     jwt_audience: str = "surfcasting-web"
 
@@ -34,6 +34,28 @@ class Settings(BaseSettings):
     neo4j_uri: str = "bolt://localhost:7687"
     neo4j_user: str = "neo4j"
     neo4j_password: str = ""
+
+    @field_validator("api_v1_prefix")
+    @classmethod
+    def normalize_api_prefix(cls, value: str) -> str:
+        normalized = "/" + value.strip().strip("/")
+        if normalized == "/":
+            raise ValueError("API_V1_PREFIX não pode ser vazio.")
+        return normalized
+
+    @field_validator("jwt_secret_key")
+    @classmethod
+    def reject_example_secrets(cls, value: str) -> str:
+        normalized = value.strip()
+        if normalized.lower().startswith(("substitua", "change-me", "changeme")):
+            raise ValueError("JWT_SECRET_KEY contém um valor de exemplo inseguro.")
+        return normalized
+
+    @model_validator(mode="after")
+    def require_production_secrets(self) -> "Settings":
+        if self.app_env.lower() in {"production", "staging"} and len(self.jwt_secret_key) < 32:
+            raise ValueError("JWT_SECRET_KEY deve possuir pelo menos 32 caracteres neste ambiente.")
+        return self
 
 
 @lru_cache

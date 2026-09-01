@@ -40,7 +40,9 @@ class BeachService:
             self.session.commit()
         except IntegrityError as exc:
             self.session.rollback()
-            raise ConflictError("Não foi possível cadastrar a praia com os dados informados.") from exc
+            raise ConflictError(
+                "Não foi possível cadastrar a praia com os dados informados."
+            ) from exc
         return beach
 
     def update(self, beach_id: int, payload: BeachUpdate, actor: User) -> Beach:
@@ -69,9 +71,9 @@ class BeachService:
             raise ConflictError("Não foi possível atualizar a praia.") from exc
         return beach
 
-    def delete(self, beach_id: int) -> None:
+    def delete(self, beach_id: int, actor: User) -> None:
         beach = self.beaches.get_by_id(beach_id)
         if beach is None:
             raise NotFoundError("Praia não encontrada.")
-        self.beaches.delete(beach)
+        self.beaches.archive(beach, actor_id=actor.id)
         self.session.commit()

@@ -59,6 +59,5 @@ def delete_beach(
     db: Annotated[Session, Depends(get_db)],
     admin: Annotated[User, Depends(admin_dependency)],
 ) -> Response:
-    del admin
-    BeachService(db).delete(beach_id)
+    BeachService(db).delete(beach_id, actor=admin)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

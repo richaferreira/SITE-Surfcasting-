@@ -60,7 +60,7 @@ def test_access_token_round_trip() -> None:
 
 
 def test_expired_access_token_is_rejected() -> None:
-    settings = security_settings(jwt_access_token_expire_minutes=-1)
+    settings = security_settings()
     token, _ = create_access_token(
         42,
         settings,
@@ -69,6 +69,22 @@ def test_expired_access_token_is_rejected() -> None:
 
     with pytest.raises(AuthenticationError):
         decode_access_token(token, settings)
+
+
+@pytest.mark.parametrize("minutes", [0, -1, 1441])
+def test_invalid_access_token_expiration_is_rejected(minutes: int) -> None:
+    with pytest.raises(ValueError):
+        security_settings(jwt_access_token_expire_minutes=minutes)
+
+
+def test_example_jwt_secret_is_rejected() -> None:
+    with pytest.raises(ValueError):
+        security_settings(jwt_secret_key="substitua_por_uma_chave_aleatoria_com_32_caracteres")
+
+
+def test_production_requires_a_strong_jwt_secret() -> None:
+    with pytest.raises(ValueError):
+        Settings(app_env="production", jwt_secret_key="curta")
 
 
 def test_rbac_allows_admin_and_rejects_common_user() -> None:

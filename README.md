@@ -81,7 +81,7 @@ PATCH  /api/v1/admin/beaches/{id}
 DELETE /api/v1/admin/beaches/{id}
 ```
 
-As rotas `/admin` exigem um token de administrador. O script `backend/scripts/create_admin.py` cria o primeiro usuário administrativo sem expor a senha no terminal.
+As rotas `/admin` exigem um token de administrador. O script `backend/scripts/create_admin.py` cria o primeiro usuário administrativo sem expor a senha no terminal. A exclusão administrativa arquiva e despublica a praia; pontos de pesca vinculados são preservados.
 
 ### Endpoint do Score
 
@@ -113,7 +113,7 @@ O score inicial é uma heurística explicável, não uma promessa de captura. A 
 | Pressão | 10 | Favorece estabilidade atmosférica moderada |
 | Lua | 5 | Usa fase calculada localmente |
 
-Os pesos ficam isolados em `backend/app/domain/score.py`, permitindo calibração futura com capturas reais, praia, estação do ano e espécie-alvo. A resposta inclui a pontuação de cada componente e avisos de dados ausentes.
+Os pesos ficam isolados em `backend/app/domain/score.py`, permitindo calibração futura com capturas reais, praia, estação do ano e espécie-alvo. A resposta inclui a pontuação de cada componente, qualidade dos dados e avisos. Quando maré ou swell essenciais estão ausentes, o score fica suspenso (`null`) para não apresentar uma recomendação enganosa.
 
 ## APIs utilizadas
 
@@ -129,6 +129,8 @@ pytest
 ```
 
 Os testes não consomem as APIs externas e não exigem chaves.
+
+Na CI, um MySQL 8.4 temporário também valida o schema e o round-trip geoespacial de latitude/longitude.
 
 ## Ambiente com bancos locais
 

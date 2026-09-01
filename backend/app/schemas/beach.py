@@ -20,15 +20,15 @@ class BeachCreate(BaseModel):
     accessibility_summary: str | None = Field(default=None, max_length=500)
     is_published: bool = False
 
-    @field_validator("name", "city")
+    @field_validator("name", "city", mode="before")
     @classmethod
-    def strip_required_text(cls, value: str) -> str:
-        return value.strip()
+    def strip_required_text(cls, value: object) -> object:
+        return value.strip() if isinstance(value, str) else value
 
-    @field_validator("state")
+    @field_validator("state", mode="before")
     @classmethod
-    def normalize_state(cls, value: str) -> str:
-        return value.strip().upper()
+    def normalize_state(cls, value: object) -> object:
+        return value.strip().upper() if isinstance(value, str) else value
 
 
 class BeachUpdate(BaseModel):
@@ -44,15 +44,15 @@ class BeachUpdate(BaseModel):
     accessibility_summary: str | None = Field(default=None, max_length=500)
     is_published: bool | None = None
 
-    @field_validator("name", "city")
+    @field_validator("name", "city", mode="before")
     @classmethod
-    def strip_text(cls, value: str | None) -> str | None:
-        return value.strip() if value is not None else None
+    def strip_text(cls, value: object) -> object:
+        return value.strip() if isinstance(value, str) else value
 
-    @field_validator("state")
+    @field_validator("state", mode="before")
     @classmethod
-    def normalize_state(cls, value: str | None) -> str | None:
-        return value.strip().upper() if value is not None else None
+    def normalize_state(cls, value: object) -> object:
+        return value.strip().upper() if isinstance(value, str) else value
 
     @model_validator(mode="after")
     def reject_empty_update(self) -> "BeachUpdate":
@@ -102,8 +102,31 @@ class BeachResponse(BaseModel):
     updated_at: datetime
 
 
+class PublicBeachResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    slug: str
+    city: str
+    state: str
+    description: str | None
+    latitude: float
+    longitude: float
+    sea_bearing_deg: float
+    beach_profile: BeachProfile
+    accessibility_summary: str | None
+
+
 class BeachListResponse(BaseModel):
     items: list[BeachResponse]
+    total: int
+    offset: int
+    limit: int
+
+
+class PublicBeachListResponse(BaseModel):
+    items: list[PublicBeachResponse]
     total: int
     offset: int
     limit: int

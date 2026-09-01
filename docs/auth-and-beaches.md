@@ -59,7 +59,7 @@ A senha é solicitada de forma oculta e não fica gravada no histórico do termi
 | `GET` | `/api/v1/admin/beaches` | Admin | Lista inclusive rascunhos |
 | `POST` | `/api/v1/admin/beaches` | Admin | Cadastra uma praia |
 | `PATCH` | `/api/v1/admin/beaches/{id}` | Admin | Atualiza uma praia |
-| `DELETE` | `/api/v1/admin/beaches/{id}` | Admin | Exclui uma praia |
+| `DELETE` | `/api/v1/admin/beaches/{id}` | Admin | Arquiva e despublica uma praia |
 
 ## Login
 
@@ -83,3 +83,7 @@ curl http://localhost:8000/api/v1/admin/beaches \
 O campo `sea_bearing_deg` é obrigatório porque permite ao Score de Pesca calcular se o vento é terral para aquele trecho específico. Ele representa a direção da areia para o mar, entre `0` e menos de `360` graus.
 
 As coordenadas são mantidas em campos numéricos para consumo da API e também atualizam a coluna espacial `POINT SRID 4326` usada pelo mapa e por consultas geográficas do MySQL.
+
+A construção espacial explicita `axis-order=long-lat`, evitando a inversão de eixos do EPSG:4326. A resposta pública omite IDs e datas de auditoria; esses campos permanecem disponíveis somente no backoffice.
+
+Para uma instalação que já executou o schema anterior, aplique uma vez `database/migrations/mysql/002_harden_auth_beaches.sql`. Novos volumes usam diretamente o schema inicial atualizado.

@@ -12,10 +12,10 @@ class UserRegistration(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
 
-    @field_validator("name", "username")
+    @field_validator("name", "username", mode="before")
     @classmethod
-    def strip_text(cls, value: str) -> str:
-        return value.strip()
+    def strip_text(cls, value: object) -> object:
+        return value.strip() if isinstance(value, str) else value
 
     @field_validator("username")
     @classmethod
