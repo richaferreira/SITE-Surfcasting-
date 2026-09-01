@@ -47,6 +47,18 @@ services:
         condition: service_healthy
     profiles: ["app"]
 
+  frontend:
+    build:
+      context: ./frontend
+    environment:
+      API_URL: http://backend:8000
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    profiles: ["app"]
+
 volumes:
   mysql_data:
   neo4j_data:
