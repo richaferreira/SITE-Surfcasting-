@@ -18,6 +18,25 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=8, max_length=128)
 
 
+class RefreshRequest(BaseModel):
+    refresh_token: str = Field(min_length=20)
+
+
+class LogoutRequest(BaseModel):
+    refresh_token: str = Field(min_length=20)
+
+
+class ProfileUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=2, max_length=120)
+    bio: str | None = Field(default=None, max_length=500)
+    avatar_url: str | None = Field(default=None, max_length=500)
+
+    @field_validator("name")
+    @classmethod
+    def strip_name(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
+
+
 class UserResponse(BaseModel):
     id: int
     name: str
@@ -30,5 +49,6 @@ class UserResponse(BaseModel):
 
 class AuthResponse(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
     user: UserResponse
