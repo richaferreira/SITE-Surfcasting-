@@ -22,6 +22,13 @@ class MarineObservation:
     pressure_hpa: float | None
 
 
+@dataclass(frozen=True, slots=True)
+class TideExtreme:
+    occurs_at: datetime
+    extreme_type: str
+    height_m: float | None
+
+
 def _parse_timestamp(value: str) -> datetime:
     normalized = value.replace("Z", "+00:00")
     parsed = datetime.fromisoformat(normalized)
@@ -31,7 +38,12 @@ def _parse_timestamp(value: str) -> datetime:
 
 
 def _api_timestamp(value: datetime) -> str:
-    return value.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return (
+        value.astimezone(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
 
 
 def _source_number(value: Any) -> float | None:
@@ -46,6 +58,21 @@ def _source_number(value: Any) -> float | None:
         if isinstance(candidate, (int, float)) and not isinstance(candidate, bool):
             return float(candidate)
     return None
+
+
+def _marine_observation(item: dict[str, Any]) -> MarineObservation:
+    timestamp = item.get("time")
+    if not isinstance(timestamp, str):
+        raise ValueError("missing time")
+    return MarineObservation(
+        observed_at=_parse_timestamp(timestamp),
+        wave_height_m=_source_number(item.get("waveHeight")),
+        wave_period_s=_source_number(item.get("wavePeriod")),
+        water_temperature_c=_source_number(item.get("waterTemperature")),
+        wind_speed_mps=_source_number(item.get("windSpeed")),
+        wind_direction_deg=_source_number(item.get("windDirection")),
+        pressure_hpa=_source_number(item.get("pressure")),
+    )
 
 
 class StormglassClient(JsonHttpClient):
@@ -92,34 +119,109 @@ class StormglassClient(JsonHttpClient):
         )
         return self.parse_marine(payload, at=moment)
 
+    def fetch_marine_forecast(
+        self,
+        latitude: float,
+        longitude: float,
+        start: datetime,
+        hours: int,
+    ) -> list[MarineObservation]:
+        moment = start.astimezone(timezone.utc)
+        payload = self.get_json(
+            self.WEATHER_URL,
+            params={
+                "lat": latitude,
+                "lng": longitude,
+                "params": (
+                    "waveHeight,wavePeriod,waterTemperature,"
+                    "windSpeed,windDirection,pressure"
+                ),
+                "source": "sg",
+                "start": _api_timestamp(moment),
+                "end": _api_timestamp(moment + timedelta(hours=hours)),
+            },
+            headers=self.auth_headers,
+            provider_name="Stormglass Weather",
+        )
+        return self.parse_marine_forecast(payload)[:hours]
+
     @staticmethod
     def parse_marine(payload: dict[str, Any], at: datetime) -> MarineObservation:
+        observations = StormglassClient.parse_marine_forecast(payload)
+        moment = at.astimezone(timezone.utc)
+        return min(observations, key=lambda item: abs(item.observed_at - moment))
+
+    @staticmethod
+    def parse_marine_forecast(payload: dict[str, Any]) -> list[MarineObservation]:
         hours = payload.get("hours")
         if not isinstance(hours, list) or not hours:
             raise ExternalAPIError("Stormglass não retornou previsão marítima horária.")
 
-        valid_hours: list[tuple[datetime, dict[str, Any]]] = []
+        observations: list[MarineObservation] = []
         for item in hours:
-            if not isinstance(item, dict) or not isinstance(item.get("time"), str):
+            if not isinstance(item, dict):
                 continue
             try:
-                valid_hours.append((_parse_timestamp(item["time"]), item))
-            except ValueError:
+                observations.append(_marine_observation(item))
+            except (TypeError, ValueError):
                 continue
-        if not valid_hours:
+
+        if not observations:
             raise ExternalAPIError("Stormglass retornou horários marítimos inválidos.")
 
-        moment = at.astimezone(timezone.utc)
-        observed_at, closest = min(valid_hours, key=lambda pair: abs(pair[0] - moment))
-        return MarineObservation(
-            observed_at=observed_at,
-            wave_height_m=_source_number(closest.get("waveHeight")),
-            wave_period_s=_source_number(closest.get("wavePeriod")),
-            water_temperature_c=_source_number(closest.get("waterTemperature")),
-            wind_speed_mps=_source_number(closest.get("windSpeed")),
-            wind_direction_deg=_source_number(closest.get("windDirection")),
-            pressure_hpa=_source_number(closest.get("pressure")),
+        observations.sort(key=lambda item: item.observed_at)
+        return observations
+
+    def fetch_tide_extremes(
+        self,
+        latitude: float,
+        longitude: float,
+        start: datetime,
+        hours: int,
+    ) -> list[TideExtreme]:
+        moment = start.astimezone(timezone.utc)
+        payload = self.get_json(
+            self.TIDE_EXTREMES_URL,
+            params={
+                "lat": latitude,
+                "lng": longitude,
+                "start": _api_timestamp(moment - timedelta(hours=6)),
+                "end": _api_timestamp(moment + timedelta(hours=hours + 6)),
+                "datum": "MSL",
+            },
+            headers=self.auth_headers,
+            provider_name="Stormglass Tide",
         )
+        return self.parse_tide_extremes(payload)
+
+    @staticmethod
+    def parse_tide_extremes(payload: dict[str, Any]) -> list[TideExtreme]:
+        data = payload.get("data")
+        if not isinstance(data, list):
+            return []
+
+        extremes: list[TideExtreme] = []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            timestamp = item.get("time")
+            extreme_type = str(item.get("type", "")).lower()
+            if not isinstance(timestamp, str) or extreme_type not in {"high", "low"}:
+                continue
+            try:
+                occurs_at = _parse_timestamp(timestamp)
+            except ValueError:
+                continue
+            extremes.append(
+                TideExtreme(
+                    occurs_at=occurs_at,
+                    extreme_type=extreme_type,
+                    height_m=_source_number(item.get("height")),
+                )
+            )
+
+        extremes.sort(key=lambda item: item.occurs_at)
+        return extremes
 
     def fetch_tide_trend(
         self,
@@ -144,35 +246,29 @@ class StormglassClient(JsonHttpClient):
 
     @staticmethod
     def parse_tide_trend(payload: dict[str, Any], at: datetime) -> TideTrend:
-        data = payload.get("data")
-        if not isinstance(data, list) or not data:
-            return TideTrend.UNKNOWN
-
-        extremes: list[tuple[datetime, str]] = []
-        for item in data:
-            if not isinstance(item, dict):
-                continue
-            timestamp = item.get("time")
-            extreme_type = str(item.get("type", "")).lower()
-            if not isinstance(timestamp, str) or extreme_type not in {"high", "low"}:
-                continue
-            try:
-                extremes.append((_parse_timestamp(timestamp), extreme_type))
-            except ValueError:
-                continue
-
+        extremes = StormglassClient.parse_tide_extremes(payload)
         if not extremes:
             return TideTrend.UNKNOWN
-        extremes.sort(key=lambda item: item[0])
+
         moment = at.astimezone(timezone.utc)
-        previous = next((item for item in reversed(extremes) if item[0] <= moment), None)
-        upcoming = next((item for item in extremes if item[0] > moment), None)
+        previous = next(
+            (item for item in reversed(extremes) if item.occurs_at <= moment),
+            None,
+        )
+        upcoming = next(
+            (item for item in extremes if item.occurs_at > moment),
+            None,
+        )
 
         if previous and upcoming:
-            if previous[1] == "low" and upcoming[1] == "high":
+            if previous.extreme_type == "low" and upcoming.extreme_type == "high":
                 return TideTrend.RISING
-            if previous[1] == "high" and upcoming[1] == "low":
+            if previous.extreme_type == "high" and upcoming.extreme_type == "low":
                 return TideTrend.FALLING
         if upcoming:
-            return TideTrend.RISING if upcoming[1] == "high" else TideTrend.FALLING
+            return (
+                TideTrend.RISING
+                if upcoming.extreme_type == "high"
+                else TideTrend.FALLING
+            )
         return TideTrend.UNKNOWN
