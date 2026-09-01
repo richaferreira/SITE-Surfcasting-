@@ -3,7 +3,7 @@ from typing import Any
 
 import jwt
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pwdlib import PasswordHash
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -13,7 +13,7 @@ from app.db import get_db
 
 settings = get_settings()
 password_hash = PasswordHash.recommended()
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.api_v1_prefix}/auth/login")
+bearer_scheme = HTTPBearer(auto_error=True)
 
 
 def hash_password(password: str) -> str:
@@ -54,10 +54,10 @@ def decode_access_token(token: str) -> dict[str, Any]:
 
 
 def get_current_user(
-    token: str = Depends(oauth2_scheme),
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    payload = decode_access_token(token)
+    payload = decode_access_token(credentials.credentials)
     user_id = payload.get("sub")
     if not user_id:
         raise HTTPException(status_code=401, detail="Token sem usuário associado.")
