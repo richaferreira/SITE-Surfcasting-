@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ConditionsChart } from "./ConditionsChart";
 import { ScoreRing } from "./ScoreRing";
 import { demoScore } from "@/lib/mock-data";
-import type { Beach, FishingScore } from "@/lib/types";
+import type { Beach, FishingScore, MarineForecast } from "@/lib/types";
 
 type Props = { beaches: Beach[]; initialDemo: boolean };
 
@@ -17,30 +17,63 @@ const conditionMeta = [
   ["pressure_hpa", "Pressão", "hPa"],
 ] as const;
 
+function tideName(type: "high" | "low") {
+  return type === "high" ? "preamar" : "baixa-mar";
+}
+
 export function DashboardClient({ beaches, initialDemo }: Props) {
   const [selectedSlug, setSelectedSlug] = useState(beaches[0]?.slug ?? "");
   const [score, setScore] = useState<FishingScore>(demoScore);
+  const [forecast, setForecast] = useState<MarineForecast | null>(null);
   const [demo, setDemo] = useState(initialDemo);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const beach = beaches.find((item) => item.slug === selectedSlug) ?? beaches[0];
+
+  function selectBeach(slug: string) {
+    setSelectedSlug(slug);
+    setScore(demoScore);
+    setForecast(null);
+    setDemo(true);
+    setMessage("Praia alterada. Atualize para carregar a telemetria desta localização.");
+  }
 
   async function refreshScore() {
     if (!beach) return;
     setLoading(true);
     setMessage("");
     try {
-      const query = new URLSearchParams({
+      const scoreQuery = new URLSearchParams({
         latitude: String(beach.latitude),
         longitude: String(beach.longitude),
         sea_bearing_deg: String(beach.sea_bearing_deg),
       });
-      const response = await fetch(`/api/public/fishing-score?${query}`, { cache: "no-store" });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.detail ?? "Não foi possível atualizar o score.");
-      setScore(payload as FishingScore);
+      const forecastQuery = new URLSearchParams({
+        latitude: String(beach.latitude),
+        longitude: String(beach.longitude),
+        hours: "24",
+      });
+      const [scoreResponse, forecastResponse] = await Promise.all([
+        fetch(`/api/public/fishing-score?${scoreQuery}`, { cache: "no-store" }),
+        fetch(`/api/public/forecast?${forecastQuery}`, { cache: "no-store" }),
+      ]);
+
+      const scorePayload = await scoreResponse.json();
+      if (!scoreResponse.ok) {
+        throw new Error(scorePayload.detail ?? "Não foi possível atualizar o score.");
+      }
+
+      setScore(scorePayload as FishingScore);
       setDemo(false);
-      setMessage("Condições atualizadas.");
+
+      if (forecastResponse.ok) {
+        const forecastPayload = (await forecastResponse.json()) as MarineForecast;
+        setForecast(forecastPayload);
+        setMessage("Condições e previsão horária atualizadas.");
+      } else {
+        setForecast(null);
+        setMessage("Condições atualizadas; a série horária está temporariamente indisponível.");
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Falha temporária ao atualizar.");
     } finally {
@@ -49,14 +82,23 @@ export function DashboardClient({ beaches, initialDemo }: Props) {
   }
 
   const chartData = useMemo(() => {
-    const wave = score.conditions.wave_height_m ?? 0;
-    const wind = score.conditions.wind_speed_mps ?? 0;
-    return Array.from({ length: 8 }, (_, index) => ({
-      time: `${String((new Date().getHours() + index * 3) % 24).padStart(2, "0")}h`,
-      onda: Number(Math.max(0, wave + Math.sin(index * 0.8) * 0.18).toFixed(1)),
-      vento: Number(Math.max(0, wind + Math.cos(index * 0.7) * 1.1).toFixed(1)),
-    }));
-  }, [score]);
+    if (!forecast) return [];
+    const points: Array<{ time: string; onda: number; vento: number }> = [];
+    forecast.hours.forEach((item, index) => {
+      if (index % 3 !== 0 || item.wave_height_m === null || item.wind_speed_mps === null) return;
+      points.push({
+        time: new Date(item.observed_at).toLocaleTimeString("pt-BR", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        onda: item.wave_height_m,
+        vento: item.wind_speed_mps,
+      });
+    });
+    return points.slice(0, 8);
+  }, [forecast]);
+
+  const nextTide = useMemo(() => forecast?.tides[0] ?? null, [forecast]);
 
   return (
     <>
@@ -69,7 +111,7 @@ export function DashboardClient({ beaches, initialDemo }: Props) {
           </div>
           <div className="beach-control card">
             <label htmlFor="beach">Praia monitorada</label>
-            <select id="beach" value={selectedSlug} onChange={(event) => setSelectedSlug(event.target.value)}>
+            <select id="beach" value={selectedSlug} onChange={(event) => selectBeach(event.target.value)}>
               {beaches.map((item) => <option key={item.id} value={item.slug}>{item.name} · {item.city}</option>)}
             </select>
             <div className="control-row">
@@ -110,7 +152,14 @@ export function DashboardClient({ beaches, initialDemo }: Props) {
           <aside className="next-tide card">
             <span className="eyebrow">Maré</span>
             <strong>{score.conditions.tide_trend}</strong>
-            <p>O algoritmo favorece a enchente, mas estruturas locais podem mudar a melhor janela.</p>
+            {nextTide ? (
+              <p>
+                Próxima {tideName(nextTide.extreme_type)} às {new Date(nextTide.occurs_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                {nextTide.height_m === null ? "." : ` · ${nextTide.height_m.toFixed(2)} m.`}
+              </p>
+            ) : (
+              <p>Atualize para carregar os próximos extremos de maré retornados pelo provedor.</p>
+            )}
             <div className="tide-line" aria-hidden="true"><i /><i /><i /><i /></div>
             <Link href="/mapa">Cruzar com o mapa técnico →</Link>
           </aside>
@@ -131,11 +180,20 @@ export function DashboardClient({ beaches, initialDemo }: Props) {
 
         <article className="chart-card card">
           <div className="section-heading compact">
-            <div><span className="eyebrow">Tendência</span><h2>Próximas 21 horas</h2></div>
+            <div><span className="eyebrow">Tendência real</span><h2>Próximas 24 horas</h2></div>
             <div className="chart-legend"><span className="wave-key">Onda (m)</span><span className="wind-key">Vento (m/s)</span></div>
           </div>
-          <ConditionsChart data={chartData} />
-          <p className="chart-note">A curva é estimada a partir da leitura atual até que o provedor forneça uma série horária completa.</p>
+          {chartData.length >= 2 ? (
+            <ConditionsChart data={chartData} />
+          ) : (
+            <div className="notice" role="note">Atualize as condições para carregar uma série horária real. Nenhuma curva é estimada localmente.</div>
+          )}
+          <p className="chart-note">
+            {forecast
+              ? `Fonte ${forecast.source}. Cobertura ${forecast.data_quality.coverage_percentage}% (${forecast.data_quality.hours_returned}/${forecast.data_quality.hours_requested} horas retornadas).`
+              : "A tendência só é desenhada quando o provedor devolve dados horários suficientes."}
+          </p>
+          {forecast?.warnings[0] && <div className="notice warning" role="note">{forecast.warnings[0]}</div>}
         </article>
       </section>
 
