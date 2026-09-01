@@ -46,3 +46,23 @@ class PostStatus(StrEnum):
 class MediaKind(StrEnum):
     IMAGE = "IMAGE"
     VIDEO = "VIDEO"
+
+
+class CommunityCategory(StrEnum):
+    RELATO = "RELATO"
+    DUVIDA = "DUVIDA"
+    CAPTURA = "CAPTURA"
+    EQUIPAMENTO = "EQUIPAMENTO"
+
+
+class CommunityStatus(StrEnum):
+    PUBLICADO = "PUBLICADO"
+    OCULTO = "OCULTO"
+    ARQUIVADO = "ARQUIVADO"
+
+
+class AdPlacement(StrEnum):
+    HOME_TOPO = "HOME_TOPO"
+    HOME_CONTEUDO = "HOME_CONTEUDO"
+    ACADEMIA = "ACADEMIA"
+    MAPA = "MAPA"

@@ -60,3 +60,21 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     expires_in: int
     user: UserResponse
+
+
+class AdminUserUpdate(BaseModel):
+    role: RoleCode | None = None
+    is_active: bool | None = None
+
+    @model_validator(mode="after")
+    def reject_empty(self) -> "AdminUserUpdate":
+        if not self.model_fields_set:
+            raise ValueError("Informe papel ou status para atualização.")
+        return self
+
+
+class UserListResponse(BaseModel):
+    items: list[UserResponse]
+    total: int
+    offset: int
+    limit: int

@@ -27,3 +27,11 @@ def enforce_auth_rate_limit(request: Request) -> None:
     ):
         raise RateLimitExceededError("Muitas tentativas de autenticação. Aguarde um minuto.")
 
+
+def enforce_community_rate_limit(request: Request) -> None:
+    settings = get_settings()
+    if not public_rate_limiter.allow(
+        _client_key(request, "community"),
+        limit=settings.community_rate_limit_per_minute,
+    ):
+        raise RateLimitExceededError("Muitas interações na comunidade. Aguarde um minuto.")

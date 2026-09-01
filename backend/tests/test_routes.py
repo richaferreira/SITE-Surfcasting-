@@ -20,3 +20,10 @@ def test_expected_routes_are_registered() -> None:
     assert "/api/v1/admin/media" in paths
     assert "/api/v1/admin/monitoring" in paths
     assert "/api/v1/beaches/{beach_slug}/recommendations" in paths
+    assert "/api/v1/community/threads" in paths
+    assert "/api/v1/community/threads/{thread_id}/comments" in paths
+    assert "/api/v1/community/threads/{thread_id}/reactions" in paths
+    assert "/api/v1/admin/community/threads" in paths
+    assert "/api/v1/ads" in paths
+    assert "/api/v1/admin/ads" in paths
+    assert "/api/v1/admin/users" in paths

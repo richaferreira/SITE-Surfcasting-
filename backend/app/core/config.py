@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     score_cache_max_entries: int = Field(default=1000, ge=10, le=10000)
     score_rate_limit_per_minute: int = Field(default=30, ge=1, le=1000)
     auth_rate_limit_per_minute: int = Field(default=10, ge=1, le=1000)
+    community_rate_limit_per_minute: int = Field(default=20, ge=1, le=1000)
 
     @field_validator("api_v1_prefix")
     @classmethod

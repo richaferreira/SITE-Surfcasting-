@@ -1,7 +1,12 @@
+from app.models.ad import AdCampaign
 from app.models.beach import Beach
+from app.models.community import CommunityComment, CommunityReaction, CommunityThread
 from app.models.enums import (
     AccessibilityLevel,
+    AdPlacement,
     BeachProfile,
+    CommunityCategory,
+    CommunityStatus,
     FishingPointType,
     MediaKind,
     PostContentType,
@@ -16,8 +21,15 @@ from app.models.user import User
 
 __all__ = [
     "AccessibilityLevel",
+    "AdCampaign",
+    "AdPlacement",
     "Beach",
     "BeachProfile",
+    "CommunityCategory",
+    "CommunityComment",
+    "CommunityReaction",
+    "CommunityStatus",
+    "CommunityThread",
     "EquipmentSpecification",
     "FishingPoint",
     "FishingPointType",

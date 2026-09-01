@@ -1,4 +1,4 @@
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.role import Role
@@ -34,3 +34,22 @@ class UserRepository:
         self.session.add(user)
         self.session.flush()
         return user
+
+    def list(self, offset: int, limit: int) -> tuple[list[User], int]:
+        statement = (
+            select(User)
+            .order_by(User.created_at.desc(), User.id.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        count = select(func.count()).select_from(User)
+        return list(self.session.scalars(statement)), int(self.session.scalar(count) or 0)
+
+    def count_active_admins(self) -> int:
+        statement = (
+            select(func.count())
+            .select_from(User)
+            .join(Role)
+            .where(Role.code == "ADMIN", User.is_active.is_(True))
+        )
+        return int(self.session.scalar(statement) or 0)

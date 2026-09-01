@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy import create_engine, text
@@ -6,16 +7,22 @@ from sqlalchemy.orm import Session
 
 from app.models.enums import (
     AccessibilityLevel,
+    AdPlacement,
     BeachProfile,
+    CommunityCategory,
     FishingPointType,
     PostContentType,
     PostStatus,
 )
 from app.repositories.user import UserRepository
 from app.schemas.beach import BeachCreate
+from app.schemas.ad import AdCampaignInput
+from app.schemas.community import CommunityThreadCreate
 from app.schemas.fishing_point import FishingPointCreate
 from app.schemas.post import EquipmentSpecificationInput, PostCreate
 from app.services.beach import BeachService
+from app.services.ad import AdService
+from app.services.community import CommunityService
 from app.services.fishing_point import FishingPointService
 from app.services.post import PostService
 
@@ -29,6 +36,10 @@ def test_spatial_round_trip_and_archive_preserve_fishing_points() -> None:
     engine = create_engine(MYSQL_URL, pool_pre_ping=True)
 
     with Session(engine, expire_on_commit=False) as session:
+        session.execute(text("DELETE FROM community_reactions"))
+        session.execute(text("DELETE FROM community_comments"))
+        session.execute(text("DELETE FROM community_threads"))
+        session.execute(text("DELETE FROM ad_campaigns"))
         session.execute(text("DELETE FROM pontos_pesca"))
         session.execute(text("DELETE FROM equipment_specifications"))
         session.execute(text("DELETE FROM posts"))
@@ -120,6 +131,36 @@ def test_spatial_round_trip_and_archive_preserve_fishing_points() -> None:
         assert specification.reel_size == 9000
         assert float(specification.main_line_diameter_mm) == pytest.approx(0.18)
 
+        thread = CommunityService(session).create_thread(
+            CommunityThreadCreate(
+                title="Relato de teste em Itaúna",
+                content="Maré enchendo e vento terral durante a validação integrada.",
+                category=CommunityCategory.RELATO,
+                beach_id=beach.id,
+            ),
+            actor=actor,
+        )
+        assert session.scalar(
+            text("SELECT COUNT(*) FROM community_threads WHERE id = :thread_id"),
+            {"thread_id": thread.id},
+        ) == 1
+
+        now = datetime.now(timezone.utc)
+        campaign = AdService(session).create(
+            AdCampaignInput(
+                name="Campanha CI",
+                placement=AdPlacement.HOME_TOPO,
+                title="Parceiro de teste",
+                image_url="/media/banner.webp",
+                target_url="https://example.com/oferta",
+                alt_text="Banner usado na validação integrada",
+                starts_at=now,
+                ends_at=now + timedelta(days=1),
+            ),
+            actor=actor,
+        )
+        assert campaign.id is not None
+
         BeachService(session).delete(beach.id, actor=actor)
 
         archived_at = session.scalar(
@@ -133,6 +174,10 @@ def test_spatial_round_trip_and_archive_preserve_fishing_points() -> None:
         assert archived_at is not None
         assert points_count == 1
 
+        session.execute(text("DELETE FROM community_reactions"))
+        session.execute(text("DELETE FROM community_comments"))
+        session.execute(text("DELETE FROM community_threads"))
+        session.execute(text("DELETE FROM ad_campaigns"))
         session.execute(text("DELETE FROM pontos_pesca"))
         session.execute(text("DELETE FROM equipment_specifications"))
         session.execute(text("DELETE FROM posts"))

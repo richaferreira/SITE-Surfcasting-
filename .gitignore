@@ -23,6 +23,10 @@ Thumbs.db
 htmlcov/
 dist/
 build/
+.next/
+node_modules/
+*.tsbuildinfo
+coverage/
 
 # Uploaded media and local volumes
 uploads/
