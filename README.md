@@ -4,13 +4,13 @@ Plataforma web mobile-first para pescadores de praia da Região dos Lagos, reuni
 
 ## Stack
 
-- **Frontend:** Next.js 15, React 19 e TypeScript.
+- **Frontend:** Next.js 16 (Active LTS), React 19 e TypeScript.
 - **Backend:** Python 3.11+ e FastAPI.
 - **Relacional:** MySQL 8.4.
 - **Grafo:** Neo4j 5 Community.
 - **Integrações:** OpenWeather e Stormglass.
 - **Infraestrutura local:** Docker Compose.
-- **CI:** GitHub Actions com pytest, typecheck e build do Next.js.
+- **CI:** GitHub Actions com pytest, auditoria de dependências, typecheck, build do Next.js e smoke test da stack Docker.
 
 ## Arquitetura
 
@@ -177,7 +177,7 @@ Depois disso a Praia de Itaúna aparece no catálogo e sua relação inicial de 
 
 ## Executar sem Docker
 
-Suba MySQL e Neo4j localmente, copie o `.env.example` para `.env` e mantenha as URLs com `localhost`.
+Suba MySQL e Neo4j localmente, copie o `.env.example` para `.env` e mantenha as URLs com `localhost`. Para o frontend, use Node.js 20.9 ou superior.
 
 Backend:
 
@@ -196,6 +196,7 @@ Frontend, em outro terminal:
 ```bash
 cd frontend
 npm install
+npm audit --omit=dev --audit-level=high
 npm run typecheck
 npm run dev
 ```
@@ -246,11 +247,13 @@ Frontend:
 
 ```bash
 cd frontend
+npm install
+npm audit --omit=dev --audit-level=high
 npm run typecheck
 npm run build
 ```
 
-O workflow `.github/workflows/ci.yml` executa essas verificações automaticamente em pull requests e pushes para `main`.
+O workflow `.github/workflows/ci.yml` executa essas verificações automaticamente em pull requests e pushes para `main`. Além dos testes unitários e do build, o smoke test sobe MySQL, Neo4j, FastAPI e Next.js, cria o administrador de CI, executa o seed inicial e valida os endpoints principais.
 
 ## Segurança
 
