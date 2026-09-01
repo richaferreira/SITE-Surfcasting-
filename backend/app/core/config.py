@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     app_debug: bool = False
     api_v1_prefix: str = "/api/v1"
     request_timeout_seconds: float = 10.0
+    cors_origins: str = "http://localhost:3000"
 
     openweather_api_key: str = ""
     stormglass_api_key: str = ""
@@ -24,6 +25,10 @@ class Settings(BaseSettings):
     neo4j_uri: str = "bolt://localhost:7687"
     neo4j_user: str = "neo4j"
     neo4j_password: str = ""
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
 
 @lru_cache
