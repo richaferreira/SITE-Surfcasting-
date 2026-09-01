@@ -11,6 +11,8 @@ settings = get_settings()
 class SpeciesRecommendation:
     species: str
     relevance: float
+    technique: str | None
+    equipment: tuple[str, ...]
 
 
 def degrees_to_compass(degrees: float) -> str:
@@ -37,9 +39,14 @@ def recommend_species(
     MATCH (water)-[waterSpecies:FAVORS]->(species:Species)
     OPTIONAL MATCH (beach)-[:OBSERVED_TIDE_PATTERN]->(tide:TideCondition {key: $tideKey})
     OPTIONAL MATCH (tide)-[tideSpecies:FAVORS]->(species)
-    WITH species,
+    OPTIONAL MATCH (species)-[:RECOMMENDS_TECHNIQUE]->(technique:Technique)
+    OPTIONAL MATCH (technique)-[:USES_EQUIPMENT]->(equipment:Equipment)
+    WITH species, technique, collect(DISTINCT equipment.name) AS equipmentNames,
          beachWind.weight + waterSpecies.weight + coalesce(tideSpecies.weight, 0.0) AS relevance
-    RETURN species.name AS species, round(relevance * 100) / 100 AS relevance
+    RETURN species.name AS species,
+           technique.name AS technique,
+           [name IN equipmentNames WHERE name IS NOT NULL] AS equipment,
+           round(relevance * 100) / 100 AS relevance
     ORDER BY relevance DESC
     LIMIT 10
     """
@@ -54,4 +61,12 @@ def recommend_species(
             tideKey=tide_key.upper(),
             database_="neo4j",
         ).records
-    return [SpeciesRecommendation(species=record["species"], relevance=float(record["relevance"])) for record in records]
+    return [
+        SpeciesRecommendation(
+            species=record["species"],
+            relevance=float(record["relevance"]),
+            technique=record["technique"],
+            equipment=tuple(record["equipment"] or []),
+        )
+        for record in records
+    ]
