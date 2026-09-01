@@ -40,3 +40,31 @@ jobs:
       - run: npm install
       - run: npm run typecheck
       - run: npm run build
+
+  stack-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare environment
+        run: |
+          cp backend/.env.example backend/.env
+          sed -i 's/^JWT_SECRET=.*/JWT_SECRET=ci-only-secret-change-me-123456789/' backend/.env
+          sed -i 's/^ADMIN_PASSWORD=.*/ADMIN_PASSWORD=CI-Test-Password-123!/' backend/.env
+      - name: Validate Compose
+        run: docker compose --profile app config --quiet
+      - name: Start stack
+        run: docker compose --profile app up -d --build
+      - name: Verify backend and bootstrap data
+        run: |
+          curl --fail --retry 15 --retry-delay 2 --retry-all-errors http://localhost:8000/health
+          docker compose --profile app exec -T backend python scripts/create_admin.py
+          docker compose --profile app exec -T backend python scripts/seed_initial_data.py
+          curl --fail --retry 10 --retry-delay 2 http://localhost:8000/api/v1/beaches | grep -q 'praia-de-itauna'
+      - name: Verify frontend
+        run: curl --fail --retry 15 --retry-delay 2 --retry-all-errors http://localhost:3000/login > /dev/null
+      - name: Show service logs on failure
+        if: failure()
+        run: docker compose --profile app logs --no-color
+      - name: Stop stack
+        if: always()
+        run: docker compose --profile app down -v --remove-orphans
