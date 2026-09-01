@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     neo4j_user: str = "neo4j"
     neo4j_password: str = ""
 
+    admin_name: str = "Administrador"
+    admin_username: str = "admin"
+    admin_email: str = "admin@example.com"
+    admin_password: str = "troque-esta-senha"
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
