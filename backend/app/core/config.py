@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_issuer: str = "surfcasting-regiao-dos-lagos"
     access_token_expire_minutes: int = 720
+    refresh_token_expire_days: int = 30
 
     openweather_api_key: str = ""
     stormglass_api_key: str = ""
