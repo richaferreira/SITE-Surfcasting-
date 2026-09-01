@@ -75,9 +75,10 @@ export default async function BeachPage({ params }: { params: Promise<{ slug: st
 
   let recommendation: RecommendationPayload | null = null;
   if (
-    score?.conditions.wind_direction_deg !== null &&
-    score?.conditions.wind_speed_mps !== null &&
-    score?.conditions.water_temperature_c !== null
+    score &&
+    score.conditions.wind_direction_deg !== null &&
+    score.conditions.wind_speed_mps !== null &&
+    score.conditions.water_temperature_c !== null
   ) {
     const tide = score.conditions.tide_trend.toUpperCase().includes("FALL") ? "FALLING" : "RISING";
     const recParams = new URLSearchParams({
