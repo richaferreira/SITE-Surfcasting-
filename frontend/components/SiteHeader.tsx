@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { clearSession, getStoredUser, SessionUser } from "../lib/api";
+import { getStoredUser, logoutSession, SessionUser } from "../lib/api";
 
 export default function SiteHeader() {
   const [user, setUser] = useState<SessionUser | null>(null);
@@ -11,8 +11,8 @@ export default function SiteHeader() {
     setUser(getStoredUser());
   }, []);
 
-  function logout() {
-    clearSession();
+  async function logout() {
+    await logoutSession();
     setUser(null);
     window.location.href = "/";
   }
@@ -36,7 +36,7 @@ export default function SiteHeader() {
         {user ? (
           <>
             <a className="profileButton" href="/perfil">{user.name.split(" ")[0]}</a>
-            <button className="textButton" type="button" onClick={logout}>Sair</button>
+            <button className="textButton" type="button" onClick={() => void logout()}>Sair</button>
           </>
         ) : (
           <a className="profileButton" href="/login">Entrar</a>
