@@ -16,6 +16,11 @@ O projeto já possui uma base executável em FastAPI com:
 - senhas protegidas com Argon2 e controle RBAC;
 - CRUD administrativo de praias e consulta pública somente das publicadas.
 - integração contínua no GitHub Actions para validar sintaxe e testes.
+- pontos de pesca geográficos com acessibilidade e alertas de risco;
+- Academia Long Cast com artigos, tutoriais, vídeos e fichas de equipamentos;
+- gestor de mídia com imagens WebP e vídeos H.264 otimizados;
+- monitoramento interno de tráfego, latência e consumo das APIs;
+- recomendações de espécies consultadas no grafo Neo4j.
 
 ## Arquitetura inicial
 
@@ -79,6 +84,15 @@ GET    /api/v1/admin/beaches
 POST   /api/v1/admin/beaches
 PATCH  /api/v1/admin/beaches/{id}
 DELETE /api/v1/admin/beaches/{id}
+
+GET    /api/v1/beaches/{slug}/points
+GET    /api/v1/beaches/{slug}/recommendations
+GET    /api/v1/academy/posts
+
+GET    /api/v1/admin/posts
+POST   /api/v1/admin/posts
+POST   /api/v1/admin/media
+GET    /api/v1/admin/monitoring
 ```
 
 As rotas `/admin` exigem um token de administrador. O script `backend/scripts/create_admin.py` cria o primeiro usuário administrativo sem expor a senha no terminal. A exclusão administrativa arquiva e despublica a praia; pontos de pesca vinculados são preservados.
@@ -131,6 +145,10 @@ pytest
 Os testes não consomem as APIs externas e não exigem chaves.
 
 Na CI, um MySQL 8.4 temporário também valida o schema e o round-trip geoespacial de latitude/longitude.
+
+## Mídia
+
+Uploads administrativos aceitam JPG, PNG, WebP, MP4, MOV e WebM. Imagens são redimensionadas e convertidas para WebP; vídeos são transcodificados para MP4/H.264 com `faststart`. O Dockerfile instala FFmpeg e o Compose persiste os arquivos em `./uploads`.
 
 ## Ambiente com bancos locais
 

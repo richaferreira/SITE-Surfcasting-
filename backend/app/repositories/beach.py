@@ -2,6 +2,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.beach import Beach
+from app.models.spatial import mysql_point_expression
 
 
 class BeachRepository:
@@ -49,8 +50,7 @@ class BeachRepository:
 
     @staticmethod
     def _location_expression(latitude: float, longitude: float):
-        wkt = f"POINT({longitude:.8f} {latitude:.8f})"
-        return func.ST_GeomFromText(wkt, 4326, "axis-order=long-lat")
+        return mysql_point_expression(latitude, longitude)
 
     def archive(self, beach: Beach, actor_id: int) -> None:
         beach.is_published = False

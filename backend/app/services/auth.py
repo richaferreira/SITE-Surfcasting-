@@ -23,7 +23,9 @@ class AuthService:
 
         role = self.users.get_role(RoleCode.USER.value)
         if role is None:
-            raise RuntimeError("A role USER não foi encontrada. Execute o schema inicial do banco.")
+            raise RuntimeError(
+                "A role USER não foi encontrada. Execute o schema inicial do banco."
+            )
 
         user = User(
             role_id=role.id,

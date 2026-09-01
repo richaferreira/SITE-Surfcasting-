@@ -32,3 +32,4 @@ class FishingScoreResponse(BaseModel):
     reasons: list[str]
     warnings: list[str]
     data_quality: DataQualityResponse
+    cached: bool

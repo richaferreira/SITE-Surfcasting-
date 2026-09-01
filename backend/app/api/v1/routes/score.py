@@ -3,11 +3,13 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.core.config import Settings, get_settings
+from app.api.dependencies.rate_limit import enforce_score_rate_limit
 from app.core.exceptions import ExternalAPIError
 from app.integrations.openweather import OpenWeatherClient
 from app.integrations.stormglass import StormglassClient
 from app.schemas.score import FishingScoreResponse
 from app.services.fishing_score import FishingScoreService
+from app.services.score_cache import score_cache
 
 router = APIRouter(prefix="/fishing-score", tags=["Score de Pesca"])
 
@@ -22,6 +24,9 @@ def get_score_service(settings: Annotated[Settings, Depends(get_settings)]) -> F
             api_key=settings.stormglass_api_key,
             timeout_seconds=settings.request_timeout_seconds,
         ),
+        cache=score_cache,
+        cache_ttl_seconds=settings.score_cache_ttl_seconds,
+        cache_max_entries=settings.score_cache_max_entries,
     )
 
 
@@ -38,7 +43,9 @@ def calculate_fishing_score(
         ),
     ],
     service: Annotated[FishingScoreService, Depends(get_score_service)],
+    rate_limit: Annotated[None, Depends(enforce_score_rate_limit)],
 ) -> FishingScoreResponse:
+    del rate_limit
     try:
         result = service.calculate(
             latitude=latitude,

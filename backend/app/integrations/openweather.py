@@ -56,4 +56,6 @@ class OpenWeatherClient(JsonHttpClient):
                 pressure_hpa=float(main["pressure"]),
             )
         except (KeyError, TypeError, ValueError) as exc:
-            raise ExternalAPIError("OpenWeather retornou campos meteorológicos incompletos.") from exc
+            raise ExternalAPIError(
+                "OpenWeather retornou campos meteorológicos incompletos."
+            ) from exc

@@ -40,6 +40,8 @@ services:
       - ./backend/.env
     ports:
       - "8000:8000"
+    volumes:
+      - ./uploads:/app/uploads
     depends_on:
       mysql:
         condition: service_healthy

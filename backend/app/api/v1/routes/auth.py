@@ -5,6 +5,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from app.api.dependencies.auth import get_current_user
+from app.api.dependencies.rate_limit import enforce_auth_rate_limit
 from app.core.config import Settings, get_settings
 from app.core.security import create_access_token
 from app.db.session import get_db
@@ -19,7 +20,9 @@ router = APIRouter(prefix="/auth", tags=["Autenticação"])
 def register_user(
     payload: UserRegistration,
     db: Annotated[Session, Depends(get_db)],
+    rate_limit: Annotated[None, Depends(enforce_auth_rate_limit)],
 ) -> UserResponse:
+    del rate_limit
     user = AuthService(db).register(payload)
     return UserResponse.from_user(user)
 
@@ -29,7 +32,9 @@ def login(
     form: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: Annotated[Session, Depends(get_db)],
     settings: Annotated[Settings, Depends(get_settings)],
+    rate_limit: Annotated[None, Depends(enforce_auth_rate_limit)],
 ) -> TokenResponse:
+    del rate_limit
     user = AuthService(db).authenticate(form.username, form.password)
     access_token, expires_in = create_access_token(user.id, settings)
     return TokenResponse(

@@ -13,6 +13,7 @@ from app.domain.score import (
 )
 from app.integrations.openweather import AtmosphericObservation, OpenWeatherClient
 from app.integrations.stormglass import MarineObservation, StormglassClient
+from app.services.score_cache import ScoreCache
 
 
 class FishingScoreService:
@@ -20,9 +21,15 @@ class FishingScoreService:
         self,
         openweather: OpenWeatherClient,
         stormglass: StormglassClient,
+        cache: ScoreCache | None = None,
+        cache_ttl_seconds: int = 600,
+        cache_max_entries: int = 1000,
     ):
         self.openweather = openweather
         self.stormglass = stormglass
+        self.cache = cache
+        self.cache_ttl_seconds = cache_ttl_seconds
+        self.cache_max_entries = cache_max_entries
 
     def calculate(
         self,
@@ -31,6 +38,17 @@ class FishingScoreService:
         sea_bearing_deg: float,
         at: datetime | None = None,
     ) -> dict[str, Any]:
+        cache_key = (
+            round(latitude, 3),
+            round(longitude, 3),
+            round(sea_bearing_deg, 1),
+        )
+        if at is None and self.cache is not None:
+            cached = self.cache.get(cache_key)
+            if cached is not None:
+                cached["cached"] = True
+                return cached
+
         moment = (at or datetime.now(timezone.utc)).astimezone(timezone.utc)
         warnings: list[str] = []
 
@@ -116,7 +134,7 @@ class FishingScoreService:
         if wind_direction is not None:
             offshore = is_offshore_wind(wind_direction, sea_bearing_deg)
 
-        return {
+        response = {
             **score_payload,
             "calculated_at": moment,
             "conditions": {
@@ -138,4 +156,13 @@ class FishingScoreService:
                 "available_components": available_components,
                 "missing_components": missing_components,
             },
+            "cached": False,
         }
+        if at is None and self.cache is not None:
+            self.cache.set(
+                cache_key,
+                response,
+                ttl_seconds=self.cache_ttl_seconds,
+                max_entries=self.cache_max_entries,
+            )
+        return response
