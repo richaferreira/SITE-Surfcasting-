@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 
 import SiteHeader from "../../components/SiteHeader";
-import { browserApi, SessionUser } from "../../lib/api";
+import { browserApi, SessionUser, updateStoredUser } from "../../lib/api";
 
 type Beach = { id: number; name: string; city: string; slug: string };
 
@@ -21,11 +21,34 @@ export default function ProfilePage() {
     ])
       .then(([me, beachList]) => {
         setUser(me);
+        updateStoredUser(me);
         setBeaches(beachList);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Não foi possível carregar o perfil."))
       .finally(() => setLoading(false));
   }, []);
+
+  async function submitProfile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setSuccess(null);
+    const form = new FormData(event.currentTarget);
+    try {
+      const updated = await browserApi<SessionUser>("/api/v1/auth/me", {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: form.get("name"),
+          bio: form.get("bio") || null,
+          avatar_url: form.get("avatar_url") || null,
+        }),
+      }, true);
+      setUser(updated);
+      updateStoredUser(updated);
+      setSuccess("Perfil atualizado.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível atualizar o perfil.");
+    }
+  }
 
   async function submitCatch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -72,13 +95,19 @@ export default function ProfilePage() {
           <div className="twoColumn">
             <article className="panel profileCard">
               <span className="eyebrow">Conta</span>
-              <h2>{user.name}</h2>
+              <h2>Editar perfil</h2>
               <dl className="detailList">
                 <div><dt>Usuário</dt><dd>@{user.username}</dd></div>
                 <div><dt>E-mail</dt><dd>{user.email}</dd></div>
                 <div><dt>Perfil</dt><dd>{user.role}</dd></div>
               </dl>
-              {user.role === "ADMIN" ? <a className="secondaryButton" href="/admin">Abrir backoffice</a> : null}
+              <form className="formStack" onSubmit={submitProfile}>
+                <label>Nome<input name="name" defaultValue={user.name} required minLength={2} /></label>
+                <label>Avatar (URL)<input name="avatar_url" type="url" defaultValue={user.avatar_url ?? ""} /></label>
+                <label>Bio<textarea name="bio" rows={4} maxLength={500} defaultValue={user.bio ?? ""} /></label>
+                <button className="primaryButton formButton" type="submit">Salvar perfil</button>
+              </form>
+              {user.role === "ADMIN" ? <a className="secondaryButton profileAdminLink" href="/admin">Abrir backoffice</a> : null}
             </article>
 
             <article className="panel">
