@@ -57,9 +57,14 @@ jobs:
         run: docker compose --profile app up -d --build
       - name: Verify graph seed
         run: docker compose --profile app exec -T backend python scripts/verify_graph.py
+      - name: Verify health, readiness and security headers
+        run: |
+          curl --fail --retry 15 --retry-delay 2 --retry-all-errors http://localhost:8000/health/live | grep -q '"status":"ok"'
+          curl --fail --retry 15 --retry-delay 2 --retry-all-errors http://localhost:8000/health/ready | grep -q '"status":"ready"'
+          curl --fail --silent --show-error --head http://localhost:8000/health/live | grep -qi '^x-content-type-options: nosniff'
+          curl --fail --silent --show-error --head http://localhost:8000/health/live | grep -qi '^x-frame-options: DENY'
       - name: Verify backend and bootstrap data
         run: |
-          curl --fail --retry 15 --retry-delay 2 --retry-all-errors http://localhost:8000/health
           docker compose --profile app exec -T backend python scripts/create_admin.py
           docker compose --profile app exec -T backend python scripts/seed_initial_data.py
           curl --fail --silent --show-error --retry 10 --retry-delay 2 http://localhost:8000/api/v1/beaches | grep -q 'praia-de-itauna'
