@@ -3,10 +3,13 @@ import { expect, test } from "@playwright/test";
 const adminEmail = process.env.E2E_ADMIN_EMAIL ?? "admin@example.com";
 const adminPassword = process.env.E2E_ADMIN_PASSWORD ?? "CI-Test-Password-123!";
 
-test("portal público, PWA e SEO essenciais respondem", async ({ page, request }) => {
+test("portal público, Academia, PWA e SEO essenciais respondem", async ({ page, request }) => {
   await page.goto("/");
   await expect(page).toHaveTitle(/Surfcasting Região dos Lagos/i);
   await expect(page.locator("body")).toContainText(/Surfcasting/i);
+
+  await page.goto("/academia");
+  await expect(page.getByRole("heading", { name: "Conhecimento técnico para evoluir na areia." })).toBeVisible();
 
   const manifest = await request.get("/manifest.webmanifest");
   expect(manifest.ok()).toBeTruthy();
