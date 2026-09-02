@@ -137,7 +137,8 @@ jobs:
           grep -q 'startsWith("/api/")' /tmp/sw.js
           echo '[seo] robots'
           curl -fsS http://localhost:3000/robots.txt -o /tmp/robots.txt
-          grep -qi 'sitemap:' /tmp/robots.txt
+          grep -qi 'user-agent:' /tmp/robots.txt
+          grep -qi 'disallow: /admin' /tmp/robots.txt
           echo '[seo] sitemap'
           curl -fsS http://localhost:3000/sitemap.xml -o /tmp/sitemap.xml
           grep -q '<urlset' /tmp/sitemap.xml
