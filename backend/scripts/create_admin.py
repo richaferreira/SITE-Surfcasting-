@@ -34,7 +34,10 @@ def main() -> None:
                     """
                     UPDATE users
                     SET role_id = :role_id, name = :name, username = :username,
-                        email = :email, password_hash = :password_hash, is_active = TRUE
+                        email = :email, password_hash = :password_hash, is_active = TRUE,
+                        email_verified_at = COALESCE(email_verified_at, UTC_TIMESTAMP()),
+                        accepted_terms_at = COALESCE(accepted_terms_at, UTC_TIMESTAMP()),
+                        accepted_privacy_at = COALESCE(accepted_privacy_at, UTC_TIMESTAMP())
                     WHERE id = :id
                     """
                 ),
@@ -45,8 +48,14 @@ def main() -> None:
             db.execute(
                 text(
                     """
-                    INSERT INTO users (role_id, name, username, email, password_hash, is_active)
-                    VALUES (:role_id, :name, :username, :email, :password_hash, TRUE)
+                    INSERT INTO users (
+                        role_id, name, username, email, password_hash, is_active,
+                        email_verified_at, accepted_terms_at, accepted_privacy_at
+                    )
+                    VALUES (
+                        :role_id, :name, :username, :email, :password_hash, TRUE,
+                        UTC_TIMESTAMP(), UTC_TIMESTAMP(), UTC_TIMESTAMP()
+                    )
                     """
                 ),
                 values,
