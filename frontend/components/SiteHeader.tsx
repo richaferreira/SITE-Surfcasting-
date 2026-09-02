@@ -43,6 +43,7 @@ export default function SiteHeader() {
       <nav className="desktopNav" aria-label="Navegação principal">
         <a href="/">Condições</a>
         <a href="/praias">Praias</a>
+        <a href="/academia">Academia</a>
         <a href="/comunidade">Comunidade</a>
         {user?.role === "ADMIN" ? <a href="/admin">Admin</a> : null}
       </nav>
