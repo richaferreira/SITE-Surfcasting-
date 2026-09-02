@@ -1,5 +1,6 @@
 // Surfcasting Região dos Lagos
-// Relações explicáveis para recomendação de espécie, técnica e equipamento.
+// Seed idempotente do motor de recomendação.
+// Consultas parametrizadas de runtime ficam no serviço Python, não neste arquivo.
 
 CREATE CONSTRAINT beach_slug_unique IF NOT EXISTS
 FOR (beach:Beach) REQUIRE beach.slug IS UNIQUE;
@@ -66,31 +67,3 @@ MERGE (species)-[:RECOMMENDS_TECHNIQUE]->(technique)
 MERGE (technique)-[:USES_EQUIPMENT]->(rod)
 MERGE (technique)-[:USES_EQUIPMENT]->(reel)
 MERGE (technique)-[:USES_EQUIPMENT]->(leader);
-
-// Consulta de referência. Os parâmetros sempre são enviados pelo driver Python.
-// :param beachSlug => 'praia-de-itauna';
-// :param windDirection => 'SW';
-// :param windSpeedMps => 5.0;
-// :param waterTemperatureC => 18.0;
-// :param tideKey => 'RISING';
-
-MATCH (beach:Beach {slug: $beachSlug})
-MATCH (beach)-[beachWind:HAS_RELEVANT_CONDITION]->(wind:WindCondition)
-WHERE wind.direction = $windDirection
-  AND $windSpeedMps >= wind.minSpeedMps
-  AND $windSpeedMps <= wind.maxSpeedMps
-MATCH (wind)-[:COMMONLY_ASSOCIATED_WITH]->(water:WaterCondition)
-WHERE $waterTemperatureC >= water.minTemperatureC
-  AND $waterTemperatureC <= water.maxTemperatureC
-MATCH (water)-[waterSpecies:FAVORS]->(species:Species)
-OPTIONAL MATCH (beach)-[:OBSERVED_TIDE_PATTERN]->(tide:TideCondition {key: $tideKey})
-OPTIONAL MATCH (tide)-[tideSpecies:FAVORS]->(species)
-OPTIONAL MATCH (species)-[:RECOMMENDS_TECHNIQUE]->(technique:Technique)
-OPTIONAL MATCH (technique)-[:USES_EQUIPMENT]->(equipment:Equipment)
-WITH species, technique, collect(DISTINCT equipment.name) AS equipmentNames,
-     beachWind.weight + waterSpecies.weight + coalesce(tideSpecies.weight, 0.0) AS relevance
-RETURN species.name AS recommendedSpecies,
-       technique.name AS technique,
-       [name IN equipmentNames WHERE name IS NOT NULL] AS equipment,
-       round(relevance * 100) / 100 AS relevance
-ORDER BY relevance DESC;
