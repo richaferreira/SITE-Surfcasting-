@@ -54,6 +54,7 @@ class Settings(BaseSettings):
 
     media_root: str = "uploads"
     media_public_url: str = "/media"
+    media_public_origin: str = "http://localhost:8000"
     media_max_image_mb: int = 8
 
     admin_name: str = "Administrador"
@@ -89,6 +90,8 @@ class Settings(BaseSettings):
             errors.append("AUTH_COOKIE_SECURE deve ser true em produção")
         if not self.frontend_url.lower().startswith("https://"):
             errors.append("FRONTEND_URL deve usar HTTPS em produção")
+        if not self.media_public_origin.lower().startswith("https://"):
+            errors.append("MEDIA_PUBLIC_ORIGIN deve usar HTTPS em produção")
         if not self.smtp_host:
             errors.append("SMTP_HOST deve ser definido em produção para verificação e recuperação de conta")
 
