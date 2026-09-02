@@ -123,12 +123,25 @@ jobs:
           test "$NO_CSRF_STATUS" = "403"
       - name: Verify frontend, PWA and SEO endpoints
         run: |
-          curl --fail --retry 15 --retry-delay 2 --retry-all-errors http://localhost:3000/login > /dev/null
-          curl --fail --retry 15 --retry-delay 2 --retry-all-errors http://localhost:3000/praias > /dev/null
-          curl --fail --silent --show-error http://localhost:3000/manifest.webmanifest | grep -q 'Surfcasting Região dos Lagos'
-          curl --fail --silent --show-error http://localhost:3000/sw.js | grep -q 'srl-public'
-          curl --fail --silent --show-error http://localhost:3000/robots.txt | grep -qi 'sitemap'
-          curl --fail --silent --show-error http://localhost:3000/sitemap.xml | grep -q '<urlset'
+          set -euo pipefail
+          echo '[web] login'
+          curl -fsS --retry 15 --retry-delay 2 --retry-all-errors http://localhost:3000/login -o /dev/null
+          echo '[web] praias'
+          curl -fsS --retry 15 --retry-delay 2 --retry-all-errors http://localhost:3000/praias -o /dev/null
+          echo '[pwa] manifest'
+          curl -fsS http://localhost:3000/manifest.webmanifest -o /tmp/manifest.json
+          python3 -c 'import json; data=json.load(open("/tmp/manifest.json", encoding="utf-8")); assert data["name"] == "Surfcasting Região dos Lagos"; assert data["display"] == "standalone"'
+          echo '[pwa] service worker'
+          curl -fsS http://localhost:3000/sw.js -o /tmp/sw.js
+          grep -q 'srl-public-v1' /tmp/sw.js
+          grep -q 'startsWith("/api/")' /tmp/sw.js
+          echo '[seo] robots'
+          curl -fsS http://localhost:3000/robots.txt -o /tmp/robots.txt
+          grep -qi 'sitemap:' /tmp/robots.txt
+          echo '[seo] sitemap'
+          curl -fsS http://localhost:3000/sitemap.xml -o /tmp/sitemap.xml
+          grep -q '<urlset' /tmp/sitemap.xml
+          grep -q '/praias/praia-de-itauna' /tmp/sitemap.xml
       - name: Run concurrent load smoke
         run: python3 ops/load_test.py --base-url http://localhost:8000 --requests 200 --concurrency 20 --p95-ms 1500 --max-error-rate 0.01
       - name: Run browser E2E tests
