@@ -11,6 +11,14 @@ venv/
 # Environment and secrets
 .env
 *.env.local
+deploy/.env.production
+
+# Frontend / tests
+node_modules/
+.next/
+*.tsbuildinfo
+frontend/playwright-report/
+frontend/test-results/
 
 # IDE / OS
 .idea/
@@ -21,11 +29,13 @@ Thumbs.db
 # Coverage / build
 .coverage
 htmlcov/
+coverage/
 dist/
 build/
 
-# Uploaded media and local volumes
+# Uploaded media, backups and local volumes
 uploads/
+backups/
 mysql_data/
 neo4j_data/
 neo4j_logs/
