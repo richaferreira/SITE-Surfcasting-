@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.v1.router import api_router
 from app.core.config import get_settings
-from app.core.http_security import SecurityHeadersMiddleware
+from app.core.http_security import CSRFMiddleware, SecurityHeadersMiddleware
 from app.services.health import check_dependencies
 
 
@@ -14,12 +14,13 @@ def create_app() -> FastAPI:
 
     application = FastAPI(
         title=settings.app_name,
-        version="0.3.0",
+        version="0.4.0",
         description="Telemetria oceanográfica, Score de Pesca explicável e comunidade Surfcasting.",
         debug=settings.app_debug,
     )
 
     application.add_middleware(SecurityHeadersMiddleware)
+    application.add_middleware(CSRFMiddleware)
     application.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
