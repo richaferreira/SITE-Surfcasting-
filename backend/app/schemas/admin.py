@@ -31,3 +31,13 @@ class ChangeActiveRequest(BaseModel):
 
 class ChangePostStatusRequest(BaseModel):
     status: str = Field(pattern=r"^(RASCUNHO|EM_REVISAO|PUBLICADO|ARQUIVADO)$")
+
+
+class AdminPostUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=4, max_length=200)
+    slug: str | None = Field(default=None, min_length=3, max_length=220, pattern=r"^[a-z0-9-]+$")
+    excerpt: str | None = Field(default=None, max_length=500)
+    content: str | None = Field(default=None, min_length=20)
+    content_type: str | None = Field(default=None, pattern=r"^(ARTIGO|TUTORIAL|VIDEO|EQUIPAMENTO)$")
+    featured_image_url: str | None = Field(default=None, max_length=500)
+    video_url: str | None = Field(default=None, max_length=500)
