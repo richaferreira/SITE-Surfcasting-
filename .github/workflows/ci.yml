@@ -61,13 +61,14 @@ jobs:
       - name: Prepare environment
         run: |
           cp backend/.env.example backend/.env
+          cp deploy/.env.production.example deploy/.env.production
           sed -i 's/^JWT_SECRET=.*/JWT_SECRET=ci-only-secret-change-me-123456789/' backend/.env
           sed -i 's/^ADMIN_PASSWORD=.*/ADMIN_PASSWORD=CI-Test-Password-123!/' backend/.env
           sed -i 's/^SMTP_HOST=.*/SMTP_HOST=/' backend/.env
       - name: Validate development and production Compose
         run: |
           docker compose --profile app config --quiet
-          docker compose --env-file deploy/.env.production.example -f docker-compose.production.yml config --quiet
+          docker compose --env-file deploy/.env.production -f docker-compose.production.yml config --quiet
       - name: Start stack
         run: docker compose --profile app up -d --build
       - name: Verify graph seed
