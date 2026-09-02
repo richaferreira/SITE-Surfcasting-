@@ -1,10 +1,11 @@
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
+from secrets import token_urlsafe
 from typing import Any
 from uuid import uuid4
 
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pwdlib import PasswordHash
 from sqlalchemy import text
@@ -15,7 +16,7 @@ from app.db import get_db
 
 settings = get_settings()
 password_hash = PasswordHash.recommended()
-bearer_scheme = HTTPBearer(auto_error=True)
+bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def hash_password(password: str) -> str:
@@ -96,11 +97,78 @@ def decode_refresh_token(token: str) -> dict[str, Any]:
     return decode_token(token, "refresh")
 
 
+def issue_csrf_token() -> str:
+    return token_urlsafe(32)
+
+
+def set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> str:
+    common = {
+        "secure": settings.auth_cookie_secure,
+        "samesite": "lax",
+        "domain": settings.cookie_domain,
+    }
+    response.set_cookie(
+        settings.access_cookie_name,
+        access_token,
+        httponly=True,
+        max_age=settings.access_token_expire_minutes * 60,
+        path="/",
+        **common,
+    )
+    response.set_cookie(
+        settings.refresh_cookie_name,
+        refresh_token,
+        httponly=True,
+        max_age=settings.refresh_token_expire_days * 86400,
+        path=f"{settings.api_v1_prefix}/auth",
+        **common,
+    )
+    csrf_token = issue_csrf_token()
+    response.set_cookie(
+        settings.csrf_cookie_name,
+        csrf_token,
+        httponly=False,
+        max_age=settings.refresh_token_expire_days * 86400,
+        path="/",
+        **common,
+    )
+    return csrf_token
+
+
+def clear_auth_cookies(response: Response) -> None:
+    response.delete_cookie(
+        settings.access_cookie_name,
+        path="/",
+        domain=settings.cookie_domain,
+        secure=settings.auth_cookie_secure,
+        samesite="lax",
+    )
+    response.delete_cookie(
+        settings.refresh_cookie_name,
+        path=f"{settings.api_v1_prefix}/auth",
+        domain=settings.cookie_domain,
+        secure=settings.auth_cookie_secure,
+        samesite="lax",
+    )
+    response.delete_cookie(
+        settings.csrf_cookie_name,
+        path="/",
+        domain=settings.cookie_domain,
+        secure=settings.auth_cookie_secure,
+        samesite="lax",
+    )
+
+
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    payload = decode_access_token(credentials.credentials)
+    token = credentials.credentials if credentials else request.cookies.get(settings.access_cookie_name)
+    if not token:
+        raise HTTPException(status_code=401, detail="Sessão não autenticada.")
+
+    payload = decode_access_token(token)
     user_id = payload.get("sub")
     if not user_id:
         raise HTTPException(status_code=401, detail="Token sem usuário associado.")
@@ -109,7 +177,7 @@ def get_current_user(
         text(
             """
             SELECT u.id, u.name, u.username, u.email, u.avatar_url, u.bio, u.is_active,
-                   r.code AS role
+                   u.email_verified_at, r.code AS role
             FROM users u
             JOIN roles r ON r.id = u.role_id
             WHERE u.id = :user_id
