@@ -1,3 +1,4 @@
+from datetime import UTC, datetime, timedelta
 from io import BytesIO
 import json
 from pathlib import Path
@@ -121,7 +122,7 @@ def admin_list_reports(
     _: dict = Depends(require_roles("ADMIN")),
 ) -> list[ReportResponse]:
     where = "WHERE status = :status" if report_status else ""
-    params = {"limit": limit}
+    params: dict[str, object] = {"limit": limit}
     if report_status:
         params["status"] = report_status
     rows = db.execute(
@@ -204,18 +205,19 @@ def analytics_summary(
     db: Session = Depends(get_db),
     _: dict = Depends(require_roles("ADMIN")),
 ) -> AnalyticsSummary:
+    cutoff = (datetime.now(UTC) - timedelta(days=days)).replace(tzinfo=None)
     total = db.execute(
-        text("SELECT COUNT(*) FROM analytics_events WHERE created_at >= UTC_TIMESTAMP() - INTERVAL :days DAY"),
-        {"days": days},
+        text("SELECT COUNT(*) FROM analytics_events WHERE created_at >= :cutoff"),
+        {"cutoff": cutoff},
     ).scalar_one()
     unique_sessions = db.execute(
         text(
             """
             SELECT COUNT(DISTINCT session_id) FROM analytics_events
-            WHERE created_at >= UTC_TIMESTAMP() - INTERVAL :days DAY AND session_id IS NOT NULL
+            WHERE created_at >= :cutoff AND session_id IS NOT NULL
             """
         ),
-        {"days": days},
+        {"cutoff": cutoff},
     ).scalar_one()
 
     def top_rows(column: str, alias: str) -> list[dict]:
@@ -224,13 +226,13 @@ def analytics_summary(
                 f"""
                 SELECT {column} AS {alias}, COUNT(*) AS events
                 FROM analytics_events
-                WHERE created_at >= UTC_TIMESTAMP() - INTERVAL :days DAY AND {column} IS NOT NULL
+                WHERE created_at >= :cutoff AND {column} IS NOT NULL
                 GROUP BY {column}
                 ORDER BY events DESC
                 LIMIT 10
                 """
             ),
-            {"days": days},
+            {"cutoff": cutoff},
         ).mappings().all()
         return [dict(row) for row in rows]
 
@@ -281,7 +283,8 @@ async def upload_image(
     stored_name = f"{uuid4().hex}.webp"
     destination = media_root / stored_name
     destination.write_bytes(content)
-    public_url = f"{settings.media_public_url.rstrip('/')}/{stored_name}"
+    relative_url = f"{settings.media_public_url.rstrip('/')}/{stored_name}"
+    public_url = f"{settings.media_public_origin.rstrip('/')}{relative_url}"
 
     result = db.execute(
         text(
