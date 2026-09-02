@@ -20,7 +20,7 @@ services:
   neo4j:
     image: neo4j:5-community
     environment:
-      NEO4J_AUTH: ${NEO4J_AUTH:-neo4j/surfcasting_dev}
+      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-surfcasting_dev}
     ports:
       - "7474:7474"
       - "7687:7687"
@@ -31,20 +31,54 @@ services:
       test: ["CMD-SHELL", "wget -qO- http://localhost:7474 >/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 15
+
+  neo4j-init:
+    image: neo4j:5-community
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+          set -euo pipefail
+          until cypher-shell -a bolt://neo4j:7687 -u ${NEO4J_USER:-neo4j} -p ${NEO4J_PASSWORD:-surfcasting_dev} -d neo4j "RETURN 1" >/dev/null 2>&1; do
+            echo "Aguardando banco neo4j via Bolt..."
+            sleep 2
+          done
+          echo "Carregando grafo inicial no banco neo4j..."
+          cypher-shell -a bolt://neo4j:7687 -u ${NEO4J_USER:-neo4j} -p ${NEO4J_PASSWORD:-surfcasting_dev} -d neo4j -f /scripts/001_fishing_recommendation.cypher
+          VERIFY_OUTPUT="$$(cypher-shell -a bolt://neo4j:7687 -u ${NEO4J_USER:-neo4j} -p ${NEO4J_PASSWORD:-surfcasting_dev} -d neo4j --format plain "MATCH (species:Species {name: 'Anchova'})-[:RECOMMENDS_TECHNIQUE]->(technique:Technique {key: 'SURF_SPINNING'}) OPTIONAL MATCH (technique)-[:USES_EQUIPMENT]->(equipment:Equipment) WITH count(DISTINCT technique) AS techniques, count(DISTINCT equipment) AS equipment RETURN CASE WHEN techniques = 1 AND equipment >= 3 THEN 'GRAPH_OK' ELSE 'GRAPH_BAD_' + toString(techniques) + '_' + toString(equipment) END AS verification;")"
+          echo "$$VERIFY_OUTPUT"
+          echo "$$VERIFY_OUTPUT" | grep -q "GRAPH_OK"
+          echo "Grafo inicial carregado e verificado."
+    volumes:
+      - ./database/neo4j:/scripts:ro
+    restart: "no"
 
   backend:
     build:
       context: ./backend
     env_file:
       - ./backend/.env
+    environment:
+      MYSQL_URL: mysql+pymysql://${MYSQL_USER:-surfcasting}:${MYSQL_PASSWORD:-surfcasting_dev}@mysql:3306/${MYSQL_DATABASE:-surfcasting}?charset=utf8mb4
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: ${NEO4J_USER:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-surfcasting_dev}
     ports:
       - "8000:8000"
     depends_on:
       mysql:
         condition: service_healthy
-      neo4j:
-        condition: service_healthy
+      neo4j-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health', timeout=3).raise_for_status()"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     profiles: ["app"]
 
   frontend:
@@ -56,7 +90,8 @@ services:
     ports:
       - "3000:3000"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     profiles: ["app"]
 
 volumes:

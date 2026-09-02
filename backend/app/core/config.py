@@ -18,6 +18,12 @@ class Settings(BaseSettings):
     request_timeout_seconds: float = 10.0
     cors_origins: str = "http://localhost:3000"
 
+    jwt_secret: str = "troque-esta-chave-em-producao"
+    jwt_algorithm: str = "HS256"
+    jwt_issuer: str = "surfcasting-regiao-dos-lagos"
+    access_token_expire_minutes: int = 720
+    refresh_token_expire_days: int = 30
+
     openweather_api_key: str = ""
     stormglass_api_key: str = ""
 
@@ -25,6 +31,11 @@ class Settings(BaseSettings):
     neo4j_uri: str = "bolt://localhost:7687"
     neo4j_user: str = "neo4j"
     neo4j_password: str = ""
+
+    admin_name: str = "Administrador"
+    admin_username: str = "admin"
+    admin_email: str = "admin@example.com"
+    admin_password: str = "troque-esta-senha"
 
     @property
     def cors_origin_list(self) -> list[str]:

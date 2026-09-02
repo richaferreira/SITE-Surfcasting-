@@ -1,117 +1,316 @@
 # Surfcasting Região dos Lagos
 
-Base arquitetural da plataforma **Surfcasting Região dos Lagos**, um portal mobile-first para telemetria oceanográfica, conhecimento técnico e comunidade de pesca de praia.
+Plataforma web mobile-first para pescadores de praia da Região dos Lagos, reunindo telemetria oceanográfica, Score de Pesca explicável, previsão horária, mapa de spots, recomendações em grafo, conteúdo técnico, comunidade e backoffice completo.
 
-Esta primeira entrega inicializa o back-end em FastAPI e contém:
+## Stack
 
-- esquema relacional MySQL 8 para usuários, praias, pontos de pesca e posts;
-- modelo inicial de recomendações em Neo4j/Cypher;
-- integrações HTTP com OpenWeather e Stormglass;
-- cálculo explicável do Score de Pesca, de 0 a 100;
-- endpoint REST e utilitário de linha de comando;
-- testes automatizados do algoritmo e dos tratamentos de JSON;
-- ambiente local opcional com Docker Compose.
+- **Frontend:** Next.js 16 (Active LTS), React 19, TypeScript e Leaflet/OpenStreetMap.
+- **Backend:** Python 3.12 e FastAPI.
+- **Relacional:** MySQL 8.4.
+- **Grafo:** Neo4j 5 Community.
+- **Integrações:** OpenWeather e Stormglass.
+- **Infraestrutura local:** Docker Compose.
+- **CI:** GitHub Actions com pytest, auditoria npm, typecheck, build e smoke test da stack Docker.
 
-## Arquitetura inicial
+## Arquitetura
 
 ```text
-Cliente/PWA
-    |
-    v
-FastAPI ----> OpenWeather (atmosfera)
-    |  `----> Stormglass (mar, vento e maré)
-    |
-    +-------> MySQL (dados transacionais e CMS)
-    `-------> Neo4j (relações e recomendações)
+Navegador / Mobile
+        |
+        v
+     Next.js :3000
+        |
+        v
+     FastAPI :8000
+      /   |    \
+     /    |     \
+MySQL   Neo4j   APIs externas
+:3306   :7687   OpenWeather / Stormglass
 ```
 
-O MySQL é a fonte oficial de usuários, conteúdo e locais. O Neo4j armazena relações derivadas entre praia, condições ambientais, técnica/equipamento e espécies. Dados retornados por APIs externas nunca devem ser gravados diretamente como regra permanente sem validação e histórico de origem.
+O MySQL é a fonte transacional oficial. O Neo4j mantém relações explicáveis entre praia, condições ambientais, espécie, técnica e equipamento. As regras do Score ficam no backend; o frontend consome os resultados e nunca contém chaves dos provedores externos.
 
-## Estrutura
+## Funcionalidades implementadas
 
-A árvore comentada do back-end está em [`docs/backend-structure.md`](docs/backend-structure.md).
+### Condições, Score e previsão
 
-Os scripts de banco estão em:
+- vento, velocidade e direção;
+- classificação terral/maral conforme a orientação praia → mar;
+- maré enchendo/vazando;
+- altura e período das ondas;
+- temperatura da água;
+- pressão atmosférica;
+- fase da lua;
+- Score de Pesca de 0 a 100 com breakdown e justificativas;
+- previsão marítima horária de 6 a 48 horas;
+- Score recalculado para cada horário da previsão.
 
-- [`database/mysql/001_initial_schema.sql`](database/mysql/001_initial_schema.sql)
-- [`database/neo4j/001_fishing_recommendation.cypher`](database/neo4j/001_fishing_recommendation.cypher)
+### Praias, pontos e mapa
 
-## Executar localmente
+- catálogo público de praias;
+- página individual com telemetria e previsão;
+- mapa Leaflet/OpenStreetMap;
+- spots por praia: buraco, coroa, canal de retorno, estrutura e outros;
+- acessibilidade, notas de acesso e riscos por spot;
+- favoritos por usuário;
+- CRUD administrativo completo de praias e pontos;
+- publicação/rascunho da praia e ativação/desativação de spots.
 
-Requisitos: Python 3.11 ou superior.
+### Recomendação Neo4j
+
+O endpoint cruza praia, direção/velocidade do vento, temperatura da água e maré com o grafo. A resposta pode incluir:
+
+```text
+Praia
+  -> Condição de vento
+  -> Condição da água
+  -> Espécie
+  -> Técnica recomendada
+  -> Equipamentos associados
+```
+
+O grafo inicial inclui a Praia de Itaúna, Anchova, surf spinning e um conjunto inicial de equipamentos.
+
+### Comunidade
+
+- artigos, tutoriais, vídeos e conteúdo de equipamentos;
+- curtidas;
+- comentários;
+- relatos de captura;
+- espécie, praia, isca, técnica, peso e comprimento;
+- feed público.
+
+### Autenticação e perfil
+
+- cadastro;
+- login por e-mail ou usuário;
+- senhas com Argon2;
+- access token JWT;
+- refresh token JWT rotativo;
+- refresh tokens persistidos apenas como hash SHA-256 no MySQL;
+- revogação de refresh token no logout;
+- renovação automática da sessão no frontend;
+- perfis `USER`, `AUTHOR` e `ADMIN`;
+- proteção de rotas por função;
+- edição de nome, bio e URL do avatar.
+
+### Backoffice
+
+- indicadores gerais;
+- gerenciamento de usuários;
+- ativar/desativar conta;
+- alterar função;
+- listar, cadastrar, editar, publicar/despublicar e excluir praias;
+- cadastrar, editar, ativar/desativar e excluir spots;
+- criar, editar, publicar, arquivar e excluir conteúdo;
+- listar, ocultar e restaurar comentários;
+- trilha de auditoria das operações administrativas.
+
+## Estrutura principal
+
+```text
+.
+├── .github/workflows/ci.yml
+├── backend/
+│   ├── app/
+│   │   ├── api/v1/routes/
+│   │   ├── core/
+│   │   ├── domain/
+│   │   ├── integrations/
+│   │   ├── schemas/
+│   │   ├── services/
+│   │   ├── db.py
+│   │   └── main.py
+│   ├── scripts/
+│   ├── tests/
+│   └── requirements.txt
+├── database/
+│   ├── mysql/
+│   │   ├── 001_initial_schema.sql
+│   │   ├── 002_platform_features.sql
+│   │   └── 003_auth_sessions.sql
+│   └── neo4j/
+│       └── 001_fishing_recommendation.cypher
+├── frontend/
+│   ├── app/
+│   ├── components/
+│   └── lib/
+└── docker-compose.yml
+```
+
+## Subir tudo com Docker
+
+### 1. Criar o arquivo de ambiente
+
+Windows PowerShell:
+
+```powershell
+Copy-Item backend\.env.example backend\.env
+```
+
+Linux/macOS:
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+Edite `backend/.env` e altere obrigatoriamente:
+
+```env
+JWT_SECRET=gere-uma-chave-longa-e-aleatoria
+ACCESS_TOKEN_EXPIRE_MINUTES=720
+REFRESH_TOKEN_EXPIRE_DAYS=30
+ADMIN_EMAIL=seu-email@exemplo.com
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=uma-senha-forte
+```
+
+Para telemetria real, preencha:
+
+```env
+OPENWEATHER_API_KEY=...
+STORMGLASS_API_KEY=...
+```
+
+Sem essas chaves, o portal continua subindo, porém os recursos que dependem dos provedores externos podem informar indisponibilidade de telemetria/previsão.
+
+### 2. Subir a stack
+
+```bash
+docker compose --profile app up -d --build
+```
+
+Serviços:
+
+- Web: `http://localhost:3000`
+- Swagger: `http://localhost:8000/docs`
+- Health: `http://localhost:8000/health`
+- Neo4j Browser: `http://localhost:7474`
+
+Ao subir um volume Neo4j novo, o `neo4j-init` aguarda o Bolt, executa `database/neo4j/001_fishing_recommendation.cypher` e termina. O backend só inicia depois desse seed concluir com sucesso.
+
+### 3. Criar o administrador
+
+```bash
+docker compose --profile app exec backend python scripts/create_admin.py
+```
+
+O container já define `PYTHONPATH=/app`, então os scripts de bootstrap funcionam diretamente dessa forma.
+
+### 4. Inserir a praia inicial no MySQL
+
+```bash
+docker compose --profile app exec backend python scripts/seed_initial_data.py
+```
+
+Depois disso a Praia de Itaúna aparece no catálogo. O grafo correspondente já foi carregado automaticamente pelo `neo4j-init`.
+
+> Se você já possui volumes antigos e precisa reaplicar todos os scripts de inicialização em desenvolvimento, execute `docker compose --profile app down -v` e depois `docker compose --profile app up -d --build`. **Isso apaga os dados dos volumes locais.**
+
+## Executar sem Docker
+
+Suba MySQL e Neo4j localmente, copie `.env.example` para `.env` e mantenha as URLs com `localhost`. Para o frontend, use Node.js 20.9 ou superior; o CI e o Docker usam Node 22.
+
+Backend:
 
 ```bash
 cd backend
 python -m venv .venv
-source .venv/bin/activate
+# Windows: .venv\Scripts\Activate.ps1
+# Linux/macOS: source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
+pytest
 uvicorn app.main:app --reload
 ```
 
-No Windows PowerShell, ative o ambiente com:
-
-```powershell
-.venv\Scripts\Activate.ps1
-```
-
-Depois, abra `http://localhost:8000/docs`.
-
-As variáveis `OPENWEATHER_API_KEY` e `STORMGLASS_API_KEY` precisam ser preenchidas no arquivo `.env`. As chaves não devem ser enviadas ao GitHub.
-
-### Endpoint do Score
-
-```http
-GET /api/v1/fishing-score?latitude=-22.93&longitude=-42.49&sea_bearing_deg=160
-```
-
-`sea_bearing_deg` representa a direção, em graus, da areia para o mar naquele trecho da praia. Esse dado permite distinguir vento terral de vento maral de forma específica para cada praia.
-
-Também é possível executar o núcleo sem subir a API:
+Frontend, em outro terminal:
 
 ```bash
-python scripts/fishing_score_cli.py \
-  --latitude -22.93 \
-  --longitude -42.49 \
-  --sea-bearing 160
+cd frontend
+npm install
+npm audit --omit=dev --audit-level=high
+npm run typecheck
+npm run dev
 ```
 
-## Como o Score de Pesca funciona
+## Endpoints principais
 
-O score inicial é uma heurística explicável, não uma promessa de captura. A soma máxima é 100 pontos:
+```text
+POST   /api/v1/auth/register
+POST   /api/v1/auth/login
+POST   /api/v1/auth/refresh
+POST   /api/v1/auth/logout
+GET    /api/v1/auth/me
+PATCH  /api/v1/auth/me
 
-| Componente | Peso máximo | Leitura inicial |
-|---|---:|---|
-| Vento | 30 | Favorece vento terral moderado |
-| Maré | 25 | Favorece maré enchendo |
-| Ondas | 20 | Considera altura e período do swell |
-| Temperatura da água | 10 | Usa uma faixa geral ajustável por espécie |
-| Pressão | 10 | Favorece estabilidade atmosférica moderada |
-| Lua | 5 | Usa fase calculada localmente |
+GET    /api/v1/beaches
+GET    /api/v1/beaches/{slug}
+GET    /api/v1/beaches/manage
+GET    /api/v1/beaches/{slug}/manage
+POST   /api/v1/beaches
+PATCH  /api/v1/beaches/{slug}
+DELETE /api/v1/beaches/{slug}
+POST   /api/v1/beaches/{slug}/points
+PATCH  /api/v1/beaches/{slug}/points/{point_id}
+DELETE /api/v1/beaches/{slug}/points/{point_id}
+POST   /api/v1/beaches/{slug}/favorite
+DELETE /api/v1/beaches/{slug}/favorite
 
-Os pesos ficam isolados em `backend/app/domain/score.py`, permitindo calibração futura com capturas reais, praia, estação do ano e espécie-alvo. A resposta inclui a pontuação de cada componente e avisos de dados ausentes.
+GET    /api/v1/fishing-score
+GET    /api/v1/forecast
+GET    /api/v1/recommendations/{beach_slug}
 
-## APIs utilizadas
+GET    /api/v1/community/posts
+POST   /api/v1/community/posts
+GET    /api/v1/community/posts/{post_id}/comments
+POST   /api/v1/community/posts/{post_id}/comments
+POST   /api/v1/community/posts/{post_id}/like
+DELETE /api/v1/community/posts/{post_id}/like
+GET    /api/v1/community/catches
+POST   /api/v1/community/catches
 
-- [Stormglass Weather API](https://docs.stormglass.io/)
-- [Stormglass Tide API](https://stormglass.io/our-tide-api-better-than-ever/)
-- [OpenWeather Current Weather Data](https://openweathermap.org/current)
+GET    /api/v1/admin/dashboard
+GET    /api/v1/admin/users
+PATCH  /api/v1/admin/users/{id}/role
+PATCH  /api/v1/admin/users/{id}/active
+GET    /api/v1/admin/posts
+PATCH  /api/v1/admin/posts/{id}
+PATCH  /api/v1/admin/posts/{id}/status
+DELETE /api/v1/admin/posts/{id}
+GET    /api/v1/admin/comments
+DELETE /api/v1/admin/comments/{id}
+POST   /api/v1/admin/comments/{id}/restore
+```
 
-## Testes
+A documentação completa e testável dos contratos fica disponível no Swagger do FastAPI.
+
+## Testes e CI
+
+Backend:
 
 ```bash
 cd backend
 pytest
 ```
 
-Os testes não consomem as APIs externas e não exigem chaves.
-
-## Ambiente com bancos locais
-
-O Docker Compose sobe MySQL e Neo4j para desenvolvimento:
+Frontend:
 
 ```bash
-docker compose up -d mysql neo4j
+cd frontend
+npm install
+npm audit --omit=dev --audit-level=high
+npm run typecheck
+npm run build
 ```
 
-Credenciais de exemplo existem apenas para desenvolvimento local e podem ser substituídas por variáveis de ambiente. Em produção, use um gerenciador de segredos e conexões TLS.
+O workflow `.github/workflows/ci.yml` executa essas verificações automaticamente em pull requests e pushes para `main`. O smoke test também sobe MySQL, Neo4j, FastAPI e Next.js, valida o seed do grafo, cria o administrador, insere a praia inicial, testa autenticação/renovação de sessão e consulta endpoints reais.
+
+## Segurança
+
+- Nunca envie `backend/.env` ao GitHub.
+- Troque `JWT_SECRET` e a senha administrativa fora de desenvolvimento.
+- Refresh tokens são armazenados no banco somente como hash e são rotacionados a cada renovação.
+- Use TLS/HTTPS e um gerenciador de segredos em produção.
+- As chaves de OpenWeather e Stormglass ficam somente no backend.
+- O conteúdo exibido em popups do mapa é inserido como texto, sem HTML não confiável.
+- A heurística do Score ajuda no planejamento, mas não substitui avaliação presencial do mar, alertas meteorológicos e regras locais de segurança.

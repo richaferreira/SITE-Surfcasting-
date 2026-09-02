@@ -48,6 +48,25 @@ def _source_number(value: Any) -> float | None:
     return None
 
 
+def _observation_from_hour(item: dict[str, Any]) -> MarineObservation | None:
+    timestamp = item.get("time")
+    if not isinstance(timestamp, str):
+        return None
+    try:
+        observed_at = _parse_timestamp(timestamp)
+    except ValueError:
+        return None
+    return MarineObservation(
+        observed_at=observed_at,
+        wave_height_m=_source_number(item.get("waveHeight")),
+        wave_period_s=_source_number(item.get("wavePeriod")),
+        water_temperature_c=_source_number(item.get("waterTemperature")),
+        wind_speed_mps=_source_number(item.get("windSpeed")),
+        wind_direction_deg=_source_number(item.get("windDirection")),
+        pressure_hpa=_source_number(item.get("pressure")),
+    )
+
+
 class StormglassClient(JsonHttpClient):
     WEATHER_URL = "https://api.stormglass.io/v2/weather/point"
     TIDE_EXTREMES_URL = "https://api.stormglass.io/v2/tide/extremes/point"
@@ -67,14 +86,14 @@ class StormglassClient(JsonHttpClient):
             raise ExternalAPIError("STORMGLASS_API_KEY não configurada.")
         return {"Authorization": self.api_key}
 
-    def fetch_marine(
+    def _fetch_weather_payload(
         self,
         latitude: float,
         longitude: float,
-        at: datetime,
-    ) -> MarineObservation:
-        moment = at.astimezone(timezone.utc)
-        payload = self.get_json(
+        start: datetime,
+        end: datetime,
+    ) -> dict[str, Any]:
+        return self.get_json(
             self.WEATHER_URL,
             params={
                 "lat": latitude,
@@ -84,41 +103,92 @@ class StormglassClient(JsonHttpClient):
                     "windSpeed,windDirection,pressure"
                 ),
                 "source": "sg",
-                "start": _api_timestamp(moment - timedelta(hours=1)),
-                "end": _api_timestamp(moment + timedelta(hours=2)),
+                "start": _api_timestamp(start),
+                "end": _api_timestamp(end),
             },
             headers=self.auth_headers,
             provider_name="Stormglass Weather",
         )
+
+    def fetch_marine(
+        self,
+        latitude: float,
+        longitude: float,
+        at: datetime,
+    ) -> MarineObservation:
+        moment = at.astimezone(timezone.utc)
+        payload = self._fetch_weather_payload(
+            latitude,
+            longitude,
+            moment - timedelta(hours=1),
+            moment + timedelta(hours=2),
+        )
         return self.parse_marine(payload, at=moment)
+
+    def fetch_marine_forecast(
+        self,
+        latitude: float,
+        longitude: float,
+        start: datetime,
+        hours: int = 24,
+    ) -> list[MarineObservation]:
+        moment = start.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
+        payload = self._fetch_weather_payload(
+            latitude,
+            longitude,
+            moment,
+            moment + timedelta(hours=hours),
+        )
+        return self.parse_marine_forecast(payload, start=moment, hours=hours)
+
+    @staticmethod
+    def parse_marine_forecast(
+        payload: dict[str, Any],
+        start: datetime,
+        hours: int,
+    ) -> list[MarineObservation]:
+        raw_hours = payload.get("hours")
+        if not isinstance(raw_hours, list) or not raw_hours:
+            raise ExternalAPIError("Stormglass não retornou previsão marítima horária.")
+
+        start_utc = start.astimezone(timezone.utc)
+        end_utc = start_utc + timedelta(hours=hours)
+        observations = [
+            observation
+            for item in raw_hours
+            if isinstance(item, dict)
+            for observation in [_observation_from_hour(item)]
+            if observation is not None and start_utc <= observation.observed_at <= end_utc
+        ]
+        observations.sort(key=lambda observation: observation.observed_at)
+        if not observations:
+            raise ExternalAPIError("Stormglass retornou horários marítimos inválidos.")
+        return observations
 
     @staticmethod
     def parse_marine(payload: dict[str, Any], at: datetime) -> MarineObservation:
-        hours = payload.get("hours")
-        if not isinstance(hours, list) or not hours:
-            raise ExternalAPIError("Stormglass não retornou previsão marítima horária.")
-
-        valid_hours: list[tuple[datetime, dict[str, Any]]] = []
-        for item in hours:
-            if not isinstance(item, dict) or not isinstance(item.get("time"), str):
-                continue
-            try:
-                valid_hours.append((_parse_timestamp(item["time"]), item))
-            except ValueError:
-                continue
-        if not valid_hours:
-            raise ExternalAPIError("Stormglass retornou horários marítimos inválidos.")
-
+        observations = StormglassClient.parse_marine_forecast(payload, start=at - timedelta(hours=3), hours=6)
         moment = at.astimezone(timezone.utc)
-        observed_at, closest = min(valid_hours, key=lambda pair: abs(pair[0] - moment))
-        return MarineObservation(
-            observed_at=observed_at,
-            wave_height_m=_source_number(closest.get("waveHeight")),
-            wave_period_s=_source_number(closest.get("wavePeriod")),
-            water_temperature_c=_source_number(closest.get("waterTemperature")),
-            wind_speed_mps=_source_number(closest.get("windSpeed")),
-            wind_direction_deg=_source_number(closest.get("windDirection")),
-            pressure_hpa=_source_number(closest.get("pressure")),
+        return min(observations, key=lambda observation: abs(observation.observed_at - moment))
+
+    def fetch_tide_extremes_payload(
+        self,
+        latitude: float,
+        longitude: float,
+        start: datetime,
+        end: datetime,
+    ) -> dict[str, Any]:
+        return self.get_json(
+            self.TIDE_EXTREMES_URL,
+            params={
+                "lat": latitude,
+                "lng": longitude,
+                "start": _api_timestamp(start),
+                "end": _api_timestamp(end),
+                "datum": "MSL",
+            },
+            headers=self.auth_headers,
+            provider_name="Stormglass Tide",
         )
 
     def fetch_tide_trend(
@@ -128,17 +198,11 @@ class StormglassClient(JsonHttpClient):
         at: datetime,
     ) -> TideTrend:
         moment = at.astimezone(timezone.utc)
-        payload = self.get_json(
-            self.TIDE_EXTREMES_URL,
-            params={
-                "lat": latitude,
-                "lng": longitude,
-                "start": _api_timestamp(moment - timedelta(hours=18)),
-                "end": _api_timestamp(moment + timedelta(hours=18)),
-                "datum": "MSL",
-            },
-            headers=self.auth_headers,
-            provider_name="Stormglass Tide",
+        payload = self.fetch_tide_extremes_payload(
+            latitude,
+            longitude,
+            moment - timedelta(hours=18),
+            moment + timedelta(hours=18),
         )
         return self.parse_tide_trend(payload, at=moment)
 

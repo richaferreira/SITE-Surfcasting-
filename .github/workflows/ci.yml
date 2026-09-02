@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: pip install -r requirements.txt
+      - run: pytest
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      API_URL: http://127.0.0.1:9
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:9
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package.json
+      - run: npm install
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm run typecheck
+      - run: npm run build
+
+  stack-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare environment
+        run: |
+          cp backend/.env.example backend/.env
+          sed -i 's/^JWT_SECRET=.*/JWT_SECRET=ci-only-secret-change-me-123456789/' backend/.env
+          sed -i 's/^ADMIN_PASSWORD=.*/ADMIN_PASSWORD=CI-Test-Password-123!/' backend/.env
+      - name: Validate Compose
+        run: docker compose --profile app config --quiet
+      - name: Start stack
+        run: docker compose --profile app up -d --build
+      - name: Verify graph seed
+        run: docker compose --profile app exec -T backend python scripts/verify_graph.py
+      - name: Verify backend and bootstrap data
+        run: |
+          curl --fail --retry 15 --retry-delay 2 --retry-all-errors http://localhost:8000/health
+          docker compose --profile app exec -T backend python scripts/create_admin.py
+          docker compose --profile app exec -T backend python scripts/seed_initial_data.py
+          curl --fail --silent --show-error --retry 10 --retry-delay 2 http://localhost:8000/api/v1/beaches | grep -q 'praia-de-itauna'
+      - name: Verify authentication and refresh rotation
+        run: |
+          AUTH_JSON=$(curl --fail --silent --show-error \
+            -H 'Content-Type: application/json' \
+            -d '{"login":"admin@example.com","password":"CI-Test-Password-123!"}' \
+            http://localhost:8000/api/v1/auth/login)
+          ACCESS_TOKEN=$(printf '%s' "$AUTH_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
+          REFRESH_TOKEN=$(printf '%s' "$AUTH_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["refresh_token"])')
+
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            http://localhost:8000/api/v1/auth/me | grep -q '"role":"ADMIN"'
+
+          REFRESH_BODY=$(REFRESH_TOKEN="$REFRESH_TOKEN" python3 -c 'import json,os; print(json.dumps({"refresh_token": os.environ["REFRESH_TOKEN"]}))')
+          REFRESH_JSON=$(curl --fail --silent --show-error \
+            -H 'Content-Type: application/json' \
+            -d "$REFRESH_BODY" \
+            http://localhost:8000/api/v1/auth/refresh)
+          NEW_ACCESS_TOKEN=$(printf '%s' "$REFRESH_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
+          NEW_REFRESH_TOKEN=$(printf '%s' "$REFRESH_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["refresh_token"])')
+          test "$NEW_REFRESH_TOKEN" != "$REFRESH_TOKEN"
+
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $NEW_ACCESS_TOKEN" \
+            http://localhost:8000/api/v1/auth/me | grep -q '"role":"ADMIN"'
+
+          OLD_REFRESH_STATUS=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            -H 'Content-Type: application/json' \
+            -d "$REFRESH_BODY" \
+            http://localhost:8000/api/v1/auth/refresh)
+          test "$OLD_REFRESH_STATUS" = "401"
+      - name: Verify frontend
+        run: |
+          curl --fail --retry 15 --retry-delay 2 --retry-all-errors http://localhost:3000/login > /dev/null
+          curl --fail --retry 15 --retry-delay 2 --retry-all-errors http://localhost:3000/praias > /dev/null
+      - name: Show service logs on failure
+        if: failure()
+        run: docker compose --profile app logs --no-color
+      - name: Stop stack
+        if: always()
+        run: docker compose --profile app down -v --remove-orphans

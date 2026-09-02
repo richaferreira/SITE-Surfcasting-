@@ -47,6 +47,31 @@ def test_stormglass_parser_prefers_sg_source_and_nearest_hour() -> None:
     assert observation.observed_at.hour == 12
 
 
+def test_stormglass_forecast_parser_filters_window_and_sorts_hours() -> None:
+    start = datetime(2026, 9, 1, 12, 0, tzinfo=timezone.utc)
+    observations = StormglassClient.parse_marine_forecast(
+        {
+            "hours": [
+                {"time": "2026-09-01T15:00:00Z", "waveHeight": {"sg": 1.5}},
+                {"time": "2026-09-01T11:00:00Z", "waveHeight": {"sg": 0.9}},
+                {
+                    "time": "2026-09-01T12:00:00Z",
+                    "waveHeight": {"noaa": 1.0, "sg": 1.2},
+                    "windSpeed": {"sg": 4.0},
+                },
+                {"time": "2026-09-01T14:00:00Z", "waveHeight": {"sg": 1.4}},
+                {"time": "invalid", "waveHeight": {"sg": 99}},
+            ]
+        },
+        start=start,
+        hours=2,
+    )
+
+    assert [item.observed_at.hour for item in observations] == [12, 14]
+    assert observations[0].wave_height_m == 1.2
+    assert observations[0].wind_speed_mps == 4.0
+
+
 def test_tide_parser_detects_rising_and_falling_intervals() -> None:
     payload = {
         "data": [
