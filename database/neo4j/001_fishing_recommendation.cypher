@@ -1,6 +1,8 @@
 // Surfcasting Região dos Lagos
 // Seed idempotente do motor de recomendação.
 // Consultas parametrizadas de runtime ficam no serviço Python, não neste arquivo.
+// Cada ponto e vírgula encerra uma consulta Cypher; por isso os relacionamentos
+// fazem MATCH explícito dos nós persistidos antes de criar as arestas.
 
 CREATE CONSTRAINT beach_slug_unique IF NOT EXISTS
 FOR (beach:Beach) REQUIRE beach.slug IS UNIQUE;
@@ -58,6 +60,15 @@ SET reel.name = 'Molinete tamanho 5000–8000', reel.category = 'MOLINETE';
 MERGE (leader:Equipment {key: 'LEADER_ABRASION'})
 SET leader.name = 'Leader resistente à abrasão', leader.category = 'LINHA';
 
+MATCH (beach:Beach {slug: 'praia-de-itauna'})
+MATCH (wind:WindCondition {key: 'SW_MODERATE'})
+MATCH (water:WaterCondition {key: 'COLD_16_20'})
+MATCH (tide:TideCondition {key: 'RISING'})
+MATCH (species:Species {name: 'Anchova'})
+MATCH (technique:Technique {key: 'SURF_SPINNING'})
+MATCH (rod:Equipment {key: 'ROD_SURF_360'})
+MATCH (reel:Equipment {key: 'REEL_5000_8000'})
+MATCH (leader:Equipment {key: 'LEADER_ABRASION'})
 MERGE (beach)-[:HAS_RELEVANT_CONDITION {weight: 0.70}]->(wind)
 MERGE (wind)-[:COMMONLY_ASSOCIATED_WITH]->(water)
 MERGE (water)-[:FAVORS {weight: 0.85}]->(species)
