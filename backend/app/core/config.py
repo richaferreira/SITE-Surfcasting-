@@ -41,6 +41,25 @@ class Settings(BaseSettings):
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
+    def validate_runtime(self) -> None:
+        if self.app_env.lower() != "production":
+            return
+
+        errors: list[str] = []
+        if self.app_debug:
+            errors.append("APP_DEBUG deve ser false em produção")
+        if self.jwt_secret == "troque-esta-chave-em-producao" or len(self.jwt_secret) < 32:
+            errors.append("JWT_SECRET deve ter pelo menos 32 caracteres e não pode usar o valor padrão")
+        if self.admin_password == "troque-esta-senha" or len(self.admin_password) < 12:
+            errors.append("ADMIN_PASSWORD deve ter pelo menos 12 caracteres e não pode usar o valor padrão")
+        if not self.neo4j_password:
+            errors.append("NEO4J_PASSWORD deve ser definido em produção")
+        if "*" in self.cors_origin_list:
+            errors.append("CORS_ORIGINS não pode conter wildcard em produção")
+
+        if errors:
+            raise RuntimeError("Configuração insegura para produção: " + "; ".join(errors))
+
 
 @lru_cache
 def get_settings() -> Settings:
