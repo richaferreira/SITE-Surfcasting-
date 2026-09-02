@@ -75,5 +75,5 @@ CREATE TABLE IF NOT EXISTS analytics_events (
 ) ENGINE=InnoDB;
 
 ALTER TABLE users
-    ADD COLUMN IF NOT EXISTS accepted_terms_at DATETIME NULL,
-    ADD COLUMN IF NOT EXISTS accepted_privacy_at DATETIME NULL;
+    ADD COLUMN accepted_terms_at DATETIME NULL,
+    ADD COLUMN accepted_privacy_at DATETIME NULL;
