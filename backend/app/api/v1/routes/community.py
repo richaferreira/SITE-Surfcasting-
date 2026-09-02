@@ -3,7 +3,9 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.security import get_current_user, require_roles
+from app.api.dependencies.auth import require_verified_user
+from app.api.dependencies.rate_limit import enforce_community_rate_limit
+from app.core.security import require_roles
 from app.db import get_db
 from app.schemas.community import (
     CatchCreate,
@@ -13,6 +15,7 @@ from app.schemas.community import (
     PostCreate,
     PostResponse,
 )
+from app.services.notifications import create_notification
 
 router = APIRouter(prefix="/community", tags=["Comunidade"])
 
@@ -54,7 +57,12 @@ def get_post(slug: str, db: Session = Depends(get_db)) -> PostResponse:
     return PostResponse.model_validate(dict(row))
 
 
-@router.post("/posts", response_model=PostResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/posts",
+    response_model=PostResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(enforce_community_rate_limit)],
+)
 def create_post(
     payload: PostCreate,
     db: Session = Depends(get_db),
@@ -125,15 +133,23 @@ def list_comments(post_id: int, db: Session = Depends(get_db)) -> list[CommentRe
     return [CommentResponse.model_validate(dict(row)) for row in rows]
 
 
-@router.post("/posts/{post_id}/comments", response_model=CommentResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/posts/{post_id}/comments",
+    response_model=CommentResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(enforce_community_rate_limit)],
+)
 def create_comment(
     post_id: int,
     payload: CommentCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_verified_user),
 ) -> CommentResponse:
-    exists = db.execute(text("SELECT id FROM posts WHERE id = :id AND status = 'PUBLICADO'"), {"id": post_id}).scalar_one_or_none()
-    if exists is None:
+    post = db.execute(
+        text("SELECT id, author_id, title, slug FROM posts WHERE id = :id AND status = 'PUBLICADO'"),
+        {"id": post_id},
+    ).mappings().first()
+    if not post:
         raise HTTPException(status_code=404, detail="Publicação não encontrada.")
 
     result = db.execute(
@@ -141,6 +157,15 @@ def create_comment(
         {"post_id": post_id, "author_id": current_user["id"], "content": payload.content.strip()},
     )
     comment_id = result.lastrowid
+    if post["author_id"] != current_user["id"]:
+        create_notification(
+            db,
+            int(post["author_id"]),
+            "POST_COMMENT",
+            "Novo comentário na sua publicação",
+            f"{current_user['name']} comentou em “{post['title']}”.",
+            f"/comunidade#{post['slug']}",
+        )
     db.commit()
     row = db.execute(
         text(
@@ -155,27 +180,47 @@ def create_comment(
     return CommentResponse.model_validate(dict(row))
 
 
-@router.post("/posts/{post_id}/like", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/posts/{post_id}/like",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(enforce_community_rate_limit)],
+)
 def like_post(
     post_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_verified_user),
 ) -> None:
-    exists = db.execute(text("SELECT id FROM posts WHERE id = :id AND status = 'PUBLICADO'"), {"id": post_id}).scalar_one_or_none()
-    if exists is None:
+    post = db.execute(
+        text("SELECT id, author_id, title, slug FROM posts WHERE id = :id AND status = 'PUBLICADO'"),
+        {"id": post_id},
+    ).mappings().first()
+    if not post:
         raise HTTPException(status_code=404, detail="Publicação não encontrada.")
-    db.execute(
+    result = db.execute(
         text("INSERT IGNORE INTO post_likes (post_id, user_id) VALUES (:post_id, :user_id)"),
         {"post_id": post_id, "user_id": current_user["id"]},
     )
+    if result.rowcount and post["author_id"] != current_user["id"]:
+        create_notification(
+            db,
+            int(post["author_id"]),
+            "POST_LIKE",
+            "Sua publicação recebeu uma curtida",
+            f"{current_user['name']} curtiu “{post['title']}”.",
+            f"/comunidade#{post['slug']}",
+        )
     db.commit()
 
 
-@router.delete("/posts/{post_id}/like", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/posts/{post_id}/like",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(enforce_community_rate_limit)],
+)
 def unlike_post(
     post_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_verified_user),
 ) -> None:
     db.execute(
         text("DELETE FROM post_likes WHERE post_id = :post_id AND user_id = :user_id"),
@@ -210,11 +255,16 @@ def list_catches(
     return [CatchResponse.model_validate(dict(row)) for row in rows]
 
 
-@router.post("/catches", response_model=CatchResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/catches",
+    response_model=CatchResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(enforce_community_rate_limit)],
+)
 def create_catch(
     payload: CatchCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_verified_user),
 ) -> CatchResponse:
     if payload.praia_id is not None:
         beach = db.execute(text("SELECT id FROM praias WHERE id = :id"), {"id": payload.praia_id}).scalar_one_or_none()
