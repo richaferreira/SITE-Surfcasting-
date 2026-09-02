@@ -25,7 +25,7 @@ test("login usa cookies HttpOnly e não persiste JWT no localStorage", async ({ 
   await page.goto("/login");
   await page.getByLabel("E-mail ou usuário").fill(adminEmail);
   await page.getByLabel("Senha").fill(adminPassword);
-  await page.getByRole("button", { name: "Entrar", exact: true }).click();
+  await page.locator("form").getByRole("button", { name: "Entrar", exact: true }).click();
   await expect(page).toHaveURL(/\/admin$/);
   await expect(page.getByRole("heading", { name: "Central administrativa" })).toBeVisible();
 
