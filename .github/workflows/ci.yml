@@ -57,11 +57,10 @@ jobs:
         run: docker compose --profile app up -d --build
       - name: Verify graph seed
         run: |
-          GRAPH_COUNT=$(docker compose --profile app exec -T neo4j cypher-shell \
+          docker compose --profile app exec -T neo4j cypher-shell \
             -u neo4j -p surfcasting_dev --format plain \
-            "MATCH (s:Species {name: 'Anchova'})-[:RECOMMENDS_TECHNIQUE]->(t:Technique) RETURN count(t) AS total;" \
-            | tail -n 1 | tr -d '\r')
-          test "$GRAPH_COUNT" = "1"
+            "MATCH (s:Species {name: 'Anchova'})-[:RECOMMENDS_TECHNIQUE]->(t:Technique) WITH count(t) AS total RETURN CASE WHEN total = 1 THEN 'GRAPH_OK' ELSE 'GRAPH_BAD_' + toString(total) END AS verification;" \
+            | grep -q 'GRAPH_OK'
       - name: Verify backend and bootstrap data
         run: |
           curl --fail --retry 15 --retry-delay 2 --retry-all-errors http://localhost:8000/health
