@@ -50,7 +50,7 @@ jobs:
 
   stack-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -64,8 +64,10 @@ jobs:
           sed -i 's/^JWT_SECRET=.*/JWT_SECRET=ci-only-secret-change-me-123456789/' backend/.env
           sed -i 's/^ADMIN_PASSWORD=.*/ADMIN_PASSWORD=CI-Test-Password-123!/' backend/.env
           sed -i 's/^SMTP_HOST=.*/SMTP_HOST=/' backend/.env
-      - name: Validate Compose
-        run: docker compose --profile app config --quiet
+      - name: Validate development and production Compose
+        run: |
+          docker compose --profile app config --quiet
+          docker compose --env-file deploy/.env.production.example -f docker-compose.production.yml config --quiet
       - name: Start stack
         run: docker compose --profile app up -d --build
       - name: Verify graph seed
@@ -77,11 +79,12 @@ jobs:
           curl --fail --silent --show-error -D - -o /dev/null http://localhost:8000/health/live | grep -qi '^x-content-type-options: nosniff'
           curl --fail --silent --show-error -D - -o /dev/null http://localhost:8000/health/live | grep -qi '^x-frame-options: DENY'
           curl --fail --silent --show-error -D - -o /dev/null http://localhost:8000/health/live | grep -qi '^content-security-policy:'
-      - name: Verify backend and bootstrap data
+      - name: Verify backend and regional bootstrap data
         run: |
           docker compose --profile app exec -T backend python scripts/create_admin.py
           docker compose --profile app exec -T backend python scripts/seed_initial_data.py
-          curl --fail --silent --show-error --retry 10 --retry-delay 2 http://localhost:8000/api/v1/beaches | grep -q 'praia-de-itauna'
+          BEACHES_JSON=$(curl --fail --silent --show-error --retry 10 --retry-delay 2 http://localhost:8000/api/v1/beaches)
+          printf '%s' "$BEACHES_JSON" | python3 -c 'import json,sys; rows=json.load(sys.stdin); slugs={row["slug"] for row in rows}; expected={"praia-de-itauna","praia-da-vila-saquarema","praia-de-jacone","praia-de-barra-nova-saquarema","praia-de-massambaba","praia-grande-arraial-do-cabo","praia-do-foguete","praia-do-pero"}; assert expected <= slugs, (expected-slugs)'
       - name: Verify HttpOnly authentication, CSRF and refresh rotation
         run: |
           AUTH_JSON=$(curl --fail --silent --show-error \
@@ -89,24 +92,19 @@ jobs:
             -H 'Content-Type: application/json' \
             -d '{"login":"admin@example.com","password":"CI-Test-Password-123!"}' \
             http://localhost:8000/api/v1/auth/login)
-
           printf '%s' "$AUTH_JSON" | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["user"]["role"] == "ADMIN"; assert data["user"]["email_verified"] is True; assert "access_token" not in data; assert "refresh_token" not in data'
           grep -q '#HttpOnly_.*srl_access' cookies.txt
           grep -q '#HttpOnly_.*srl_refresh' cookies.txt
           grep -q 'srl_csrf' cookies.txt
 
-          curl --fail --silent --show-error \
-            -b cookies.txt \
-            http://localhost:8000/api/v1/auth/me | grep -q '"role":"ADMIN"'
-
+          curl --fail --silent --show-error -b cookies.txt http://localhost:8000/api/v1/auth/me | grep -q '"role":"ADMIN"'
           CSRF_TOKEN=$(awk '$6 == "srl_csrf" {print $7}' cookies.txt | tail -1)
           OLD_REFRESH=$(awk '$6 == "srl_refresh" {print $7}' cookies.txt | tail -1)
           test -n "$CSRF_TOKEN"
           test -n "$OLD_REFRESH"
 
           REFRESH_JSON=$(curl --fail --silent --show-error \
-            -b cookies.txt -c cookies.txt \
-            -X POST \
+            -b cookies.txt -c cookies.txt -X POST \
             -H "X-CSRF-Token: $CSRF_TOKEN" \
             http://localhost:8000/api/v1/auth/refresh)
           printf '%s' "$REFRESH_JSON" | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["user"]["role"] == "ADMIN"; assert "access_token" not in data; assert "refresh_token" not in data'
@@ -114,22 +112,13 @@ jobs:
           NEW_REFRESH=$(awk '$6 == "srl_refresh" {print $7}' cookies.txt | tail -1)
           test -n "$NEW_REFRESH"
           test "$NEW_REFRESH" != "$OLD_REFRESH"
-
-          curl --fail --silent --show-error \
-            -b cookies.txt \
-            http://localhost:8000/api/v1/auth/me | grep -q '"role":"ADMIN"'
+          curl --fail --silent --show-error -b cookies.txt http://localhost:8000/api/v1/auth/me | grep -q '"role":"ADMIN"'
 
           OLD_REFRESH_BODY=$(OLD_REFRESH="$OLD_REFRESH" python3 -c 'import json,os; print(json.dumps({"refresh_token": os.environ["OLD_REFRESH"]}))')
-          OLD_REFRESH_STATUS=$(curl --silent --output /dev/null --write-out '%{http_code}' \
-            -H 'Content-Type: application/json' \
-            -d "$OLD_REFRESH_BODY" \
-            http://localhost:8000/api/v1/auth/refresh)
+          OLD_REFRESH_STATUS=$(curl --silent --output /dev/null --write-out '%{http_code}' -H 'Content-Type: application/json' -d "$OLD_REFRESH_BODY" http://localhost:8000/api/v1/auth/refresh)
           test "$OLD_REFRESH_STATUS" = "401"
 
-          NO_CSRF_STATUS=$(curl --silent --output /dev/null --write-out '%{http_code}' \
-            -b cookies.txt \
-            -X POST \
-            http://localhost:8000/api/v1/auth/logout)
+          NO_CSRF_STATUS=$(curl --silent --output /dev/null --write-out '%{http_code}' -b cookies.txt -X POST http://localhost:8000/api/v1/auth/logout)
           test "$NO_CSRF_STATUS" = "403"
       - name: Verify frontend, PWA and SEO endpoints
         run: |
@@ -139,6 +128,8 @@ jobs:
           curl --fail --silent --show-error http://localhost:3000/sw.js | grep -q 'srl-public'
           curl --fail --silent --show-error http://localhost:3000/robots.txt | grep -qi 'sitemap'
           curl --fail --silent --show-error http://localhost:3000/sitemap.xml | grep -q '<urlset'
+      - name: Run concurrent load smoke
+        run: python3 ops/load_test.py --base-url http://localhost:8000 --requests 200 --concurrency 20 --p95-ms 1500 --max-error-rate 0.01
       - name: Run browser E2E tests
         run: |
           npm --prefix frontend install
