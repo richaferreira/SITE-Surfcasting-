@@ -1,6 +1,9 @@
+from pathlib import Path
+
 from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.router import api_router
 from app.core.config import get_settings
@@ -27,6 +30,14 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+    )
+
+    media_root = Path(settings.media_root).resolve()
+    media_root.mkdir(parents=True, exist_ok=True)
+    application.mount(
+        settings.media_public_url,
+        StaticFiles(directory=str(media_root), check_dir=False),
+        name="media",
     )
 
     application.include_router(api_router, prefix=settings.api_v1_prefix)
