@@ -9,6 +9,7 @@ from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.core.http_security import CSRFMiddleware, SecurityHeadersMiddleware
 from app.services.health import check_dependencies
+from app.services.observability import RequestObservabilityMiddleware
 
 
 def create_app() -> FastAPI:
@@ -24,6 +25,7 @@ def create_app() -> FastAPI:
 
     application.add_middleware(SecurityHeadersMiddleware)
     application.add_middleware(CSRFMiddleware)
+    application.add_middleware(RequestObservabilityMiddleware)
     application.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
