@@ -1,4 +1,4 @@
-const CACHE_NAME = "srl-shell-v1";
+const CACHE_NAME = "srl-public-v1";
 const APP_SHELL = ["/", "/praias", "/offline", "/manifest.webmanifest", "/icons/icon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -14,7 +14,7 @@ self.addEventListener("activate", (event) => {
 });
 
 function shouldBypass(url) {
-  return url.pathname.startsWith("/api/") || url.pathname.startsWith("/admin") || url.pathname.startsWith("/login") || url.pathname.startsWith("/perfil") || url.pathname.startsWith("/notificacoes");
+  return url.pathname.startsWith("/api/") || url.pathname.startsWith("/admin") || url.pathname.startsWith("/login") || url.pathname.startsWith("/perfil") || url.pathname.startsWith("/notificacoes") || url.pathname.startsWith("/redefinir-senha") || url.pathname.startsWith("/verificar-email");
 }
 
 self.addEventListener("fetch", (event) => {
