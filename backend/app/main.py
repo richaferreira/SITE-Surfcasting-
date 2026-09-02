@@ -1,11 +1,15 @@
+from pathlib import Path
+
 from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.router import api_router
 from app.core.config import get_settings
-from app.core.http_security import SecurityHeadersMiddleware
+from app.core.http_security import CSRFMiddleware, SecurityHeadersMiddleware
 from app.services.health import check_dependencies
+from app.services.observability import RequestObservabilityMiddleware
 
 
 def create_app() -> FastAPI:
@@ -14,18 +18,28 @@ def create_app() -> FastAPI:
 
     application = FastAPI(
         title=settings.app_name,
-        version="0.3.0",
+        version="0.4.0",
         description="Telemetria oceanográfica, Score de Pesca explicável e comunidade Surfcasting.",
         debug=settings.app_debug,
     )
 
     application.add_middleware(SecurityHeadersMiddleware)
+    application.add_middleware(CSRFMiddleware)
+    application.add_middleware(RequestObservabilityMiddleware)
     application.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+    )
+
+    media_root = Path(settings.media_root).resolve()
+    media_root.mkdir(parents=True, exist_ok=True)
+    application.mount(
+        settings.media_public_url,
+        StaticFiles(directory=str(media_root), check_dir=False),
+        name="media",
     )
 
     application.include_router(api_router, prefix=settings.api_v1_prefix)

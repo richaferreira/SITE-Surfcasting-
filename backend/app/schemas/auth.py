@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
@@ -6,6 +8,8 @@ class RegisterRequest(BaseModel):
     username: str = Field(min_length=3, max_length=60, pattern=r"^[A-Za-z0-9_.-]+$")
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
+    accept_terms: Literal[True]
+    accept_privacy: Literal[True]
 
     @field_validator("name", "username")
     @classmethod
@@ -19,11 +23,28 @@ class LoginRequest(BaseModel):
 
 
 class RefreshRequest(BaseModel):
-    refresh_token: str = Field(min_length=20)
+    refresh_token: str | None = Field(default=None, min_length=20)
 
 
 class LogoutRequest(BaseModel):
-    refresh_token: str = Field(min_length=20)
+    refresh_token: str | None = Field(default=None, min_length=20)
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(min_length=32, max_length=256)
+    new_password: str = Field(min_length=8, max_length=128)
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str = Field(min_length=32, max_length=256)
+
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
 
 
 class ProfileUpdate(BaseModel):
@@ -45,10 +66,13 @@ class UserResponse(BaseModel):
     role: str
     avatar_url: str | None = None
     bio: str | None = None
+    email_verified: bool = False
 
 
 class AuthResponse(BaseModel):
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
+    authenticated: bool = True
     user: UserResponse
+
+
+class MessageResponse(BaseModel):
+    message: str

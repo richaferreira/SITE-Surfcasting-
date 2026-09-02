@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useState } from "react";
 
 import SiteHeader from "../../components/SiteHeader";
@@ -42,10 +43,12 @@ export default function LoginPage() {
           username: form.get("username"),
           email: form.get("email"),
           password: form.get("password"),
+          accept_terms: form.get("accept_terms") === "on",
+          accept_privacy: form.get("accept_privacy") === "on",
         }),
       });
       saveSession(payload);
-      window.location.href = "/perfil";
+      window.location.href = "/perfil?confirmar-email=1";
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível criar sua conta.");
     } finally {
@@ -81,6 +84,9 @@ export default function LoginPage() {
                 Senha
                 <input name="password" type="password" autoComplete="current-password" required minLength={8} />
               </label>
+              <div className="formMetaRow">
+                <Link href="/esqueci-senha">Esqueci minha senha</Link>
+              </div>
               <button className="primaryButton formButton" disabled={loading} type="submit">
                 {loading ? "Entrando..." : "Entrar"}
               </button>
@@ -102,6 +108,14 @@ export default function LoginPage() {
               <label>
                 Senha
                 <input name="password" type="password" autoComplete="new-password" required minLength={8} />
+              </label>
+              <label className="consentRow">
+                <input name="accept_terms" type="checkbox" required />
+                <span>Li e aceito os <Link href="/termos" target="_blank">Termos de Uso</Link>.</span>
+              </label>
+              <label className="consentRow">
+                <input name="accept_privacy" type="checkbox" required />
+                <span>Li a <Link href="/privacidade" target="_blank">Política de Privacidade</Link> e concordo com o tratamento descrito.</span>
               </label>
               <button className="primaryButton formButton" disabled={loading} type="submit">
                 {loading ? "Criando..." : "Criar conta"}

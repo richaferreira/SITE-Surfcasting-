@@ -12,26 +12,15 @@ export type SessionUser = {
   role: "ADMIN" | "AUTHOR" | "USER";
   avatar_url?: string | null;
   bio?: string | null;
+  email_verified: boolean;
 };
 
 export type AuthPayload = {
-  access_token: string;
-  refresh_token: string;
-  token_type: string;
+  authenticated: boolean;
   user: SessionUser;
 };
 
 let refreshPromise: Promise<AuthPayload> | null = null;
-
-export function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem("srl_token");
-}
-
-export function getRefreshToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem("srl_refresh_token");
-}
 
 export function getStoredUser(): SessionUser | null {
   if (typeof window === "undefined") return null;
@@ -45,8 +34,6 @@ export function getStoredUser(): SessionUser | null {
 }
 
 export function saveSession(payload: AuthPayload): void {
-  window.localStorage.setItem("srl_token", payload.access_token);
-  window.localStorage.setItem("srl_refresh_token", payload.refresh_token);
   window.localStorage.setItem("srl_user", JSON.stringify(payload.user));
 }
 
@@ -55,20 +42,34 @@ export function updateStoredUser(user: SessionUser): void {
 }
 
 export function clearSession(): void {
+  window.localStorage.removeItem("srl_user");
+  // Limpa resíduos das versões anteriores do portal.
   window.localStorage.removeItem("srl_token");
   window.localStorage.removeItem("srl_refresh_token");
-  window.localStorage.removeItem("srl_user");
+}
+
+function readCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const prefix = `${encodeURIComponent(name)}=`;
+  const part = document.cookie.split("; ").find((item) => item.startsWith(prefix));
+  return part ? decodeURIComponent(part.slice(prefix.length)) : null;
+}
+
+function csrfHeaders(headers: Headers, method: string): void {
+  if (["GET", "HEAD", "OPTIONS"].includes(method.toUpperCase())) return;
+  const csrf = readCookie("srl_csrf");
+  if (csrf) headers.set("X-CSRF-Token", csrf);
 }
 
 async function refreshSession(): Promise<AuthPayload> {
   if (refreshPromise) return refreshPromise;
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) throw new Error("Sua sessão expirou. Entre novamente.");
 
+  const headers = new Headers({ "Content-Type": "application/json" });
+  csrfHeaders(headers, "POST");
   refreshPromise = fetch(`${PUBLIC_API_URL}/api/v1/auth/refresh`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token: refreshToken }),
+    headers,
+    credentials: "include",
   })
     .then(async (response) => {
       const data = await response.json().catch(() => ({}));
@@ -95,15 +96,18 @@ async function performRequest<T>(
   allowRefresh: boolean,
 ): Promise<T> {
   const headers = new Headers(init.headers);
-  if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
-
-  if (authenticated) {
-    const token = getToken();
-    if (!token) throw new Error("Faça login para continuar.");
-    headers.set("Authorization", `Bearer ${token}`);
+  const method = (init.method ?? "GET").toUpperCase();
+  const isFormData = typeof FormData !== "undefined" && init.body instanceof FormData;
+  if (init.body && !isFormData && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
   }
+  csrfHeaders(headers, method);
 
-  const response = await fetch(`${PUBLIC_API_URL}${path}`, { ...init, headers });
+  const response = await fetch(`${PUBLIC_API_URL}${path}`, {
+    ...init,
+    headers,
+    credentials: "include",
+  });
   if (response.status === 401 && authenticated && allowRefresh) {
     await refreshSession();
     return performRequest<T>(path, init, authenticated, false);
@@ -123,19 +127,27 @@ export async function browserApi<T>(
   return performRequest<T>(path, init, authenticated, true);
 }
 
+export async function restoreSession(): Promise<SessionUser | null> {
+  try {
+    const user = await browserApi<SessionUser>("/api/v1/auth/me", {}, true);
+    updateStoredUser(user);
+    return user;
+  } catch {
+    clearSession();
+    return null;
+  }
+}
+
 export async function logoutSession(): Promise<void> {
-  const refreshToken = getRefreshToken();
-  if (refreshToken) {
-    try {
-      await fetch(`${PUBLIC_API_URL}/api/v1/auth/logout`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refresh_token: refreshToken }),
-      });
-    } finally {
-      clearSession();
-    }
-  } else {
+  const headers = new Headers({ "Content-Type": "application/json" });
+  csrfHeaders(headers, "POST");
+  try {
+    await fetch(`${PUBLIC_API_URL}/api/v1/auth/logout`, {
+      method: "POST",
+      headers,
+      credentials: "include",
+    });
+  } finally {
     clearSession();
   }
 }

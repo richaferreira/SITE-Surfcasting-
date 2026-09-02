@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Surfcasting Região dos Lagos">
+  <rect width="512" height="512" rx="112" fill="#071318"/>
+  <path d="M70 310c58-42 116-42 174 0s116 42 198 0" fill="none" stroke="#5fd0c8" stroke-width="28" stroke-linecap="round"/>
+  <path d="M70 366c58-42 116-42 174 0s116 42 198 0" fill="none" stroke="#2f8994" stroke-width="22" stroke-linecap="round"/>
+  <path d="M330 105c-78 35-132 95-150 180" fill="none" stroke="#f2b84b" stroke-width="20" stroke-linecap="round"/>
+  <circle cx="340" cy="100" r="22" fill="#f2b84b"/>
+  <text x="256" y="245" text-anchor="middle" font-family="Arial, sans-serif" font-size="92" font-weight="800" fill="#f4f7f5">SRL</text>
+</svg>

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from time import perf_counter
 from typing import Any
 
 import requests
@@ -7,6 +8,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from app.core.exceptions import ExternalAPIError
+from app.services.observability import metrics
 
 
 class JsonHttpClient:
@@ -37,6 +39,8 @@ class JsonHttpClient:
         headers: dict[str, str] | None = None,
         provider_name: str,
     ) -> dict[str, Any]:
+        started = perf_counter()
+        success = False
         try:
             response = self.session.get(
                 url,
@@ -46,13 +50,15 @@ class JsonHttpClient:
             )
             response.raise_for_status()
             payload = response.json()
+            if not isinstance(payload, dict):
+                raise ExternalAPIError(f"{provider_name} retornou uma estrutura inesperada.")
+            success = True
+            return payload
         except requests.Timeout as exc:
             raise ExternalAPIError(f"Tempo esgotado ao consultar {provider_name}.") from exc
         except requests.RequestException as exc:
             raise ExternalAPIError(f"Falha HTTP ao consultar {provider_name}.") from exc
         except ValueError as exc:
             raise ExternalAPIError(f"{provider_name} retornou JSON inválido.") from exc
-
-        if not isinstance(payload, dict):
-            raise ExternalAPIError(f"{provider_name} retornou uma estrutura inesperada.")
-        return payload
+        finally:
+            metrics.record_provider(provider_name, (perf_counter() - started) * 1000, success)
