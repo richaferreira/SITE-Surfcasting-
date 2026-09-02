@@ -1,13 +1,15 @@
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.security import require_roles
 from app.db import get_db
 from app.schemas.admin import (
     AdminDashboard,
+    AdminPostUpdate,
     AdminUser,
     ChangeActiveRequest,
     ChangePostStatusRequest,
@@ -129,6 +131,75 @@ def change_active(
     return AdminUser.model_validate(dict(row))
 
 
+@router.get("/posts")
+def list_admin_posts(
+    limit: int = Query(default=100, ge=1, le=500),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(admin_only),
+) -> list[dict[str, object]]:
+    del current_user
+    rows = db.execute(
+        text(
+            """
+            SELECT p.id, p.author_id, u.name AS author_name, p.title, p.slug, p.excerpt,
+                   p.content, p.content_type, p.status, p.featured_image_url, p.video_url,
+                   p.published_at, p.created_at, p.updated_at
+            FROM posts p
+            JOIN users u ON u.id = p.author_id
+            ORDER BY p.updated_at DESC, p.created_at DESC
+            LIMIT :limit
+            """
+        ),
+        {"limit": limit},
+    ).mappings().all()
+    return [dict(row) for row in rows]
+
+
+@router.patch("/posts/{post_id}")
+def update_post(
+    post_id: int,
+    payload: AdminPostUpdate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(admin_only),
+) -> dict[str, object]:
+    existing = db.execute(text("SELECT id, title, slug, content, content_type FROM posts WHERE id = :id"), {"id": post_id}).mappings().first()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Publicação não encontrada.")
+
+    updates = payload.model_dump(exclude_unset=True)
+    required_fields = {"title", "slug", "content", "content_type"}
+    if any(field in updates and updates[field] is None for field in required_fields):
+        raise HTTPException(status_code=422, detail="Título, slug, conteúdo e tipo não podem ser nulos.")
+    if not updates:
+        return {"id": post_id, "updated": False}
+
+    assignments = [f"{field} = :{field}" for field in updates]
+    try:
+        db.execute(
+            text(f"UPDATE posts SET {', '.join(assignments)} WHERE id = :id"),
+            {**updates, "id": post_id},
+        )
+        _audit(db, current_user["id"], "update_post", "post", post_id, {"fields": sorted(updates.keys())})
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Já existe uma publicação com esse slug.") from exc
+
+    row = db.execute(
+        text(
+            """
+            SELECT p.id, p.author_id, u.name AS author_name, p.title, p.slug, p.excerpt,
+                   p.content, p.content_type, p.status, p.featured_image_url, p.video_url,
+                   p.published_at, p.created_at, p.updated_at
+            FROM posts p JOIN users u ON u.id = p.author_id
+            WHERE p.id = :id
+            """
+        ),
+        {"id": post_id},
+    ).mappings().one()
+    return dict(row)
+
+
 @router.patch("/posts/{post_id}/status")
 def change_post_status(
     post_id: int,
@@ -136,7 +207,10 @@ def change_post_status(
     db: Session = Depends(get_db),
     current_user: dict = Depends(admin_only),
 ) -> dict[str, object]:
-    published_at = "CURRENT_TIMESTAMP" if payload.status == "PUBLICADO" else "published_at"
+    if payload.status == "PUBLICADO":
+        published_at = "COALESCE(published_at, CURRENT_TIMESTAMP)"
+    else:
+        published_at = "published_at"
     result = db.execute(
         text(f"UPDATE posts SET status = :status, published_at = {published_at} WHERE id = :id"),
         {"status": payload.status, "id": post_id},
@@ -147,6 +221,44 @@ def change_post_status(
     _audit(db, current_user["id"], "change_post_status", "post", post_id, {"status": payload.status})
     db.commit()
     return {"id": post_id, "status": payload.status}
+
+
+@router.delete("/posts/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_post(
+    post_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(admin_only),
+) -> None:
+    result = db.execute(text("DELETE FROM posts WHERE id = :id"), {"id": post_id})
+    if result.rowcount == 0:
+        db.rollback()
+        raise HTTPException(status_code=404, detail="Publicação não encontrada.")
+    _audit(db, current_user["id"], "delete_post", "post", post_id, {})
+    db.commit()
+
+
+@router.get("/comments")
+def list_admin_comments(
+    limit: int = Query(default=100, ge=1, le=500),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(admin_only),
+) -> list[dict[str, object]]:
+    del current_user
+    rows = db.execute(
+        text(
+            """
+            SELECT c.id, c.post_id, p.title AS post_title, c.author_id, u.name AS author_name,
+                   c.content, c.status, c.created_at, c.updated_at
+            FROM post_comments c
+            JOIN posts p ON p.id = c.post_id
+            JOIN users u ON u.id = c.author_id
+            ORDER BY c.created_at DESC
+            LIMIT :limit
+            """
+        ),
+        {"limit": limit},
+    ).mappings().all()
+    return [dict(row) for row in rows]
 
 
 @router.delete("/comments/{comment_id}")
@@ -162,3 +274,18 @@ def hide_comment(
     _audit(db, current_user["id"], "hide_comment", "comment", comment_id, {})
     db.commit()
     return {"id": comment_id, "status": "OCULTO"}
+
+
+@router.post("/comments/{comment_id}/restore")
+def restore_comment(
+    comment_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(admin_only),
+) -> dict[str, object]:
+    result = db.execute(text("UPDATE post_comments SET status = 'PUBLICADO' WHERE id = :id"), {"id": comment_id})
+    if result.rowcount == 0:
+        db.rollback()
+        raise HTTPException(status_code=404, detail="Comentário não encontrado.")
+    _audit(db, current_user["id"], "restore_comment", "comment", comment_id, {})
+    db.commit()
+    return {"id": comment_id, "status": "PUBLICADO"}
