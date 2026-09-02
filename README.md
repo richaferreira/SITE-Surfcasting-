@@ -1,295 +1,139 @@
 # Surfcasting Região dos Lagos
 
-Plataforma web mobile-first para pescadores de praia da Região dos Lagos, reunindo telemetria oceanográfica, Score de Pesca explicável, previsão horária, mapa de spots, recomendações em grafo, conteúdo técnico, comunidade e backoffice completo.
+Portal mobile-first para pesca de praia na Região dos Lagos: telemetria oceanográfica, Score de Pesca explicável, previsão horária, catálogo geográfico, mapa de spots, recomendações Neo4j, comunidade, PWA e backoffice.
+
+## Estado do projeto
+
+A aplicação está estruturada para desenvolvimento e implantação com Docker. O release é validado por CI com backend, frontend, MySQL, Neo4j, autenticação por cookies HttpOnly/CSRF, PWA/SEO, Playwright e smoke de carga.
+
+Para publicação pública ainda é necessário provisionar recursos externos que não pertencem ao código: **domínio/DNS, servidor, conta SMTP e chaves reais OpenWeather/Stormglass**. A configuração de produção desses recursos está pronta em `docker-compose.production.yml` e `deploy/`.
 
 ## Stack
 
-- **Frontend:** Next.js 16 (Active LTS), React 19, TypeScript e Leaflet/OpenStreetMap.
-- **Backend:** Python 3.12 e FastAPI.
-- **Relacional:** MySQL 8.4.
+- **Frontend:** Next.js 16.3.4, React 19, TypeScript, Leaflet/OpenStreetMap e PWA.
+- **Backend:** Python 3.12 + FastAPI.
+- **Banco relacional:** MySQL 8.4.
 - **Grafo:** Neo4j 5 Community.
 - **Integrações:** OpenWeather e Stormglass.
-- **Infraestrutura local:** Docker Compose.
-- **CI:** GitHub Actions com pytest, auditoria npm, typecheck, build e smoke test da stack Docker.
+- **Proxy/HTTPS:** Caddy.
+- **E2E:** Playwright.
+- **CI:** GitHub Actions.
 
-## Arquitetura
+## Segurança de conta
 
-```text
-Navegador / Mobile
-        |
-        v
-     Next.js :3000
-        |
-        v
-     FastAPI :8000
-      /   |    \
-     /    |     \
-MySQL   Neo4j   APIs externas
-:3306   :7687   OpenWeather / Stormglass
-```
+- Argon2 para senhas;
+- JWT de acesso curto e refresh rotativo;
+- tokens de sessão entregues somente por **cookies HttpOnly**;
+- nenhum JWT salvo em `localStorage`;
+- cookie CSRF separado + header obrigatório para operações autenticadas mutáveis;
+- refresh persistido no MySQL somente como SHA-256;
+- revogação no logout e após redefinição de senha;
+- rate limiting de autenticação, comunidade e APIs públicas;
+- verificação de e-mail;
+- recuperação/redefinição de senha;
+- validação rígida de configuração quando `APP_ENV=production`;
+- headers de segurança e HSTS em produção.
 
-O MySQL é a fonte transacional oficial. O Neo4j mantém relações explicáveis entre praia, condições ambientais, espécie, técnica e equipamento. As regras do Score ficam no backend; o frontend consome os resultados e nunca contém chaves dos provedores externos.
+## Produto
 
-## Funcionalidades implementadas
+### Oceanografia e inteligência
 
-### Condições, Score e previsão
+- Score de Pesca de 0 a 100 com justificativas;
+- vento, pressão, onda, período, temperatura da água e maré;
+- previsão horária de 6 a 48 horas;
+- recomendações por praia/vento/temperatura/maré no Neo4j;
+- técnica e equipamentos genéricos associados à recomendação.
 
-- vento, velocidade e direção;
-- classificação terral/maral conforme a orientação praia → mar;
-- maré enchendo/vazando;
-- altura e período das ondas;
-- temperatura da água;
-- pressão atmosférica;
-- fase da lua;
-- Score de Pesca de 0 a 100 com breakdown e justificativas;
-- previsão marítima horária de 6 a 48 horas;
-- Score recalculado para cada horário da previsão.
+### Catálogo regional
 
-### Praias, pontos e mapa
+O seed inicial publica 8 referências geográficas:
 
-- catálogo público de praias;
-- página individual com telemetria e previsão;
-- mapa Leaflet/OpenStreetMap;
-- spots por praia: buraco, coroa, canal de retorno, estrutura e outros;
-- acessibilidade, notas de acesso e riscos por spot;
-- favoritos por usuário;
-- CRUD administrativo completo de praias e pontos;
-- publicação/rascunho da praia e ativação/desativação de spots.
+1. Praia de Itaúna — Saquarema;
+2. Praia da Vila — Saquarema;
+3. Praia de Jaconé — Saquarema;
+4. Praia de Barra Nova — Saquarema;
+5. Praia de Massambaba — Arraial do Cabo;
+6. Praia Grande — Arraial do Cabo;
+7. Praia do Foguete — Cabo Frio;
+8. Praia do Peró — Cabo Frio.
 
-### Recomendação Neo4j
-
-O endpoint cruza praia, direção/velocidade do vento, temperatura da água e maré com o grafo. A resposta pode incluir:
-
-```text
-Praia
-  -> Condição de vento
-  -> Condição da água
-  -> Espécie
-  -> Técnica recomendada
-  -> Equipamentos associados
-```
-
-O grafo inicial inclui a Praia de Itaúna, Anchova, surf spinning e um conjunto inicial de equipamentos.
+As fontes geográficas e critérios editoriais estão em [`docs/regional-data-sources.md`](docs/regional-data-sources.md). Spots, canais, buracos, estruturas, acessos e riscos específicos **não são fabricados pelo seed** e devem ser validados antes da publicação.
 
 ### Comunidade
 
-- artigos, tutoriais, vídeos e conteúdo de equipamentos;
-- curtidas;
-- comentários;
-- relatos de captura;
-- espécie, praia, isca, técnica, peso e comprimento;
-- feed público.
-
-### Autenticação e perfil
-
-- cadastro;
-- login por e-mail ou usuário;
-- senhas com Argon2;
-- access token JWT;
-- refresh token JWT rotativo;
-- refresh tokens persistidos apenas como hash SHA-256 no MySQL;
-- revogação de refresh token no logout;
-- renovação automática da sessão no frontend;
-- perfis `USER`, `AUTHOR` e `ADMIN`;
-- proteção de rotas por função;
-- edição de nome, bio e URL do avatar.
+- artigos/tutorial/conteúdo técnico;
+- curtidas e comentários;
+- registro de capturas com foto;
+- upload validado de JPG/PNG/WebP e normalização WebP;
+- denúncias de posts/comentários;
+- notificações de interação;
+- moderação administrativa;
+- analytics próprio sem tracker publicitário externo.
 
 ### Backoffice
 
-- indicadores gerais;
-- gerenciamento de usuários;
-- ativar/desativar conta;
-- alterar função;
-- listar, cadastrar, editar, publicar/despublicar e excluir praias;
-- cadastrar, editar, ativar/desativar e excluir spots;
-- criar, editar, publicar, arquivar e excluir conteúdo;
-- listar, ocultar e restaurar comentários;
-- trilha de auditoria das operações administrativas.
+- dashboard;
+- usuários/RBAC;
+- praias e spots;
+- conteúdo e comentários;
+- fila de denúncias;
+- métricas de tráfego, latência e erros;
+- estado de MySQL/Neo4j e provedores externos;
+- trilha de auditoria.
 
-## Estrutura principal
+### Web/PWA/SEO
 
-```text
-.
-├── .github/workflows/ci.yml
-├── backend/
-│   ├── app/
-│   │   ├── api/v1/routes/
-│   │   ├── core/
-│   │   ├── domain/
-│   │   ├── integrations/
-│   │   ├── schemas/
-│   │   ├── services/
-│   │   ├── db.py
-│   │   └── main.py
-│   ├── scripts/
-│   ├── tests/
-│   └── requirements.txt
-├── database/
-│   ├── mysql/
-│   │   ├── 001_initial_schema.sql
-│   │   ├── 002_platform_features.sql
-│   │   └── 003_auth_sessions.sql
-│   └── neo4j/
-│       └── 001_fishing_recommendation.cypher
-├── frontend/
-│   ├── app/
-│   ├── components/
-│   └── lib/
-└── docker-compose.yml
-```
+- PWA instalável;
+- service worker com cache apenas de conteúdo público seguro;
+- API/admin excluídos do cache offline;
+- página offline;
+- `manifest.webmanifest`;
+- sitemap e robots dinâmicos;
+- OpenGraph/Twitter metadata.
 
-## Subir tudo com Docker
+## Desenvolvimento local
 
-### 1. Criar o arquivo de ambiente
-
-Windows PowerShell:
-
-```powershell
-Copy-Item backend\.env.example backend\.env
-```
-
-Linux/macOS:
+### 1. Ambiente
 
 ```bash
 cp backend/.env.example backend/.env
 ```
 
-Edite `backend/.env` e altere obrigatoriamente:
+No PowerShell:
 
-```env
-JWT_SECRET=gere-uma-chave-longa-e-aleatoria
-ACCESS_TOKEN_EXPIRE_MINUTES=720
-REFRESH_TOKEN_EXPIRE_DAYS=30
-ADMIN_EMAIL=seu-email@exemplo.com
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=uma-senha-forte
+```powershell
+Copy-Item backend\.env.example backend\.env
 ```
 
-Para telemetria real, preencha:
+Troque `JWT_SECRET` e `ADMIN_PASSWORD`. Para telemetria real, informe `OPENWEATHER_API_KEY` e `STORMGLASS_API_KEY`. SMTP pode permanecer vazio em desenvolvimento; e-mails transacionais são registrados no log em vez de enviados.
 
-```env
-OPENWEATHER_API_KEY=...
-STORMGLASS_API_KEY=...
-```
-
-Sem essas chaves, o portal continua subindo, porém os recursos que dependem dos provedores externos podem informar indisponibilidade de telemetria/previsão.
-
-### 2. Subir a stack
+### 2. Stack completa
 
 ```bash
 docker compose --profile app up -d --build
 ```
 
-Serviços:
-
-- Web: `http://localhost:3000`
+- Portal: `http://localhost:3000`
 - Swagger: `http://localhost:8000/docs`
-- Health: `http://localhost:8000/health`
+- Liveness: `http://localhost:8000/health/live`
+- Readiness: `http://localhost:8000/health/ready`
 - Neo4j Browser: `http://localhost:7474`
 
-Ao subir um volume Neo4j novo, o `neo4j-init` aguarda o Bolt, executa `database/neo4j/001_fishing_recommendation.cypher` e termina. O backend só inicia depois desse seed concluir com sucesso.
-
-### 3. Criar o administrador
+### 3. Bootstrap
 
 ```bash
-docker compose --profile app exec backend python scripts/create_admin.py
+docker compose --profile app exec -T backend python scripts/create_admin.py
+docker compose --profile app exec -T backend python scripts/seed_initial_data.py
+docker compose --profile app exec -T backend python scripts/verify_graph.py
 ```
 
-O container já define `PYTHONPATH=/app`, então os scripts de bootstrap funcionam diretamente dessa forma.
-
-### 4. Inserir a praia inicial no MySQL
-
-```bash
-docker compose --profile app exec backend python scripts/seed_initial_data.py
-```
-
-Depois disso a Praia de Itaúna aparece no catálogo. O grafo correspondente já foi carregado automaticamente pelo `neo4j-init`.
-
-> Se você já possui volumes antigos e precisa reaplicar todos os scripts de inicialização em desenvolvimento, execute `docker compose --profile app down -v` e depois `docker compose --profile app up -d --build`. **Isso apaga os dados dos volumes locais.**
-
-## Executar sem Docker
-
-Suba MySQL e Neo4j localmente, copie `.env.example` para `.env` e mantenha as URLs com `localhost`. Para o frontend, use Node.js 20.9 ou superior; o CI e o Docker usam Node 22.
+## Testes
 
 Backend:
 
 ```bash
 cd backend
-python -m venv .venv
-# Windows: .venv\Scripts\Activate.ps1
-# Linux/macOS: source .venv/bin/activate
 pip install -r requirements.txt
-pytest
-uvicorn app.main:app --reload
-```
-
-Frontend, em outro terminal:
-
-```bash
-cd frontend
-npm install
-npm audit --omit=dev --audit-level=high
-npm run typecheck
-npm run dev
-```
-
-## Endpoints principais
-
-```text
-POST   /api/v1/auth/register
-POST   /api/v1/auth/login
-POST   /api/v1/auth/refresh
-POST   /api/v1/auth/logout
-GET    /api/v1/auth/me
-PATCH  /api/v1/auth/me
-
-GET    /api/v1/beaches
-GET    /api/v1/beaches/{slug}
-GET    /api/v1/beaches/manage
-GET    /api/v1/beaches/{slug}/manage
-POST   /api/v1/beaches
-PATCH  /api/v1/beaches/{slug}
-DELETE /api/v1/beaches/{slug}
-POST   /api/v1/beaches/{slug}/points
-PATCH  /api/v1/beaches/{slug}/points/{point_id}
-DELETE /api/v1/beaches/{slug}/points/{point_id}
-POST   /api/v1/beaches/{slug}/favorite
-DELETE /api/v1/beaches/{slug}/favorite
-
-GET    /api/v1/fishing-score
-GET    /api/v1/forecast
-GET    /api/v1/recommendations/{beach_slug}
-
-GET    /api/v1/community/posts
-POST   /api/v1/community/posts
-GET    /api/v1/community/posts/{post_id}/comments
-POST   /api/v1/community/posts/{post_id}/comments
-POST   /api/v1/community/posts/{post_id}/like
-DELETE /api/v1/community/posts/{post_id}/like
-GET    /api/v1/community/catches
-POST   /api/v1/community/catches
-
-GET    /api/v1/admin/dashboard
-GET    /api/v1/admin/users
-PATCH  /api/v1/admin/users/{id}/role
-PATCH  /api/v1/admin/users/{id}/active
-GET    /api/v1/admin/posts
-PATCH  /api/v1/admin/posts/{id}
-PATCH  /api/v1/admin/posts/{id}/status
-DELETE /api/v1/admin/posts/{id}
-GET    /api/v1/admin/comments
-DELETE /api/v1/admin/comments/{id}
-POST   /api/v1/admin/comments/{id}/restore
-```
-
-A documentação completa e testável dos contratos fica disponível no Swagger do FastAPI.
-
-## Testes e CI
-
-Backend:
-
-```bash
-cd backend
 pytest
 ```
 
@@ -301,16 +145,72 @@ npm install
 npm audit --omit=dev --audit-level=high
 npm run typecheck
 npm run build
+npx playwright install chromium
+npm run test:e2e
 ```
 
-O workflow `.github/workflows/ci.yml` executa essas verificações automaticamente em pull requests e pushes para `main`. O smoke test também sobe MySQL, Neo4j, FastAPI e Next.js, valida o seed do grafo, cria o administrador, insere a praia inicial, testa autenticação/renovação de sessão e consulta endpoints reais.
+Smoke de carga, com a stack ativa:
 
-## Segurança
+```bash
+python ops/load_test.py --base-url http://localhost:8000 --requests 200 --concurrency 20
+```
 
-- Nunca envie `backend/.env` ao GitHub.
-- Troque `JWT_SECRET` e a senha administrativa fora de desenvolvimento.
-- Refresh tokens são armazenados no banco somente como hash e são rotacionados a cada renovação.
-- Use TLS/HTTPS e um gerenciador de segredos em produção.
-- As chaves de OpenWeather e Stormglass ficam somente no backend.
-- O conteúdo exibido em popups do mapa é inserido como texto, sem HTML não confiável.
-- A heurística do Score ajuda no planejamento, mas não substitui avaliação presencial do mar, alertas meteorológicos e regras locais de segurança.
+## Produção
+
+O procedimento completo está em [`docs/production-runbook.md`](docs/production-runbook.md).
+
+Resumo:
+
+```bash
+cp deploy/.env.production.example deploy/.env.production
+# preencher domínio, senhas, SMTP e chaves externas
+
+docker compose --env-file deploy/.env.production -f docker-compose.production.yml config --quiet
+docker compose --env-file deploy/.env.production -f docker-compose.production.yml up -d --build
+```
+
+O Caddy publica apenas 80/443 e gerencia HTTPS. MySQL, Neo4j, FastAPI e Next.js permanecem na rede privada do Compose.
+
+## Backup e restore
+
+```bash
+COMPOSE_FILE=docker-compose.production.yml ./ops/backup.sh
+COMPOSE_FILE=docker-compose.production.yml ./ops/restore.sh backups/AAAAMMDDTHHMMSSZ
+```
+
+Os backups incluem MySQL, Neo4j, uploads, manifesto e SHA-256. Mantenha cópia fora do host e teste restauração periodicamente.
+
+## Estrutura
+
+```text
+.
+├── .github/workflows/ci.yml
+├── backend/
+│   ├── app/
+│   ├── scripts/
+│   └── tests/
+├── database/
+│   ├── mysql/
+│   └── neo4j/
+├── deploy/
+│   ├── .env.production.example
+│   └── Caddyfile
+├── docs/
+│   ├── production-runbook.md
+│   └── regional-data-sources.md
+├── frontend/
+│   ├── app/
+│   ├── components/
+│   ├── e2e/
+│   └── public/
+├── ops/
+│   ├── backup.sh
+│   ├── restore.sh
+│   └── load_test.py
+├── docker-compose.yml
+└── docker-compose.production.yml
+```
+
+## Nota de responsabilidade
+
+Score, previsão e recomendações são ferramentas de apoio ao planejamento. Não substituem avaliação presencial do mar, avisos oficiais, regras de unidades de conservação, sinalização, licenças ou decisões de segurança.
