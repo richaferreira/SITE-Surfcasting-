@@ -1,0 +1,134 @@
+.formMetaRow {
+  display: flex;
+  justify-content: flex-end;
+  font-size: 0.9rem;
+}
+
+.formMetaRow a,
+.consentRow a,
+.legalPage a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.consentRow {
+  display: grid !important;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 0.7rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.consentRow input {
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.15rem;
+}
+
+.verificationNotice {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.notificationButton {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 0.82rem;
+}
+
+.notificationButton b {
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.28rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #f2b84b;
+  color: #071318;
+  font-size: 0.72rem;
+}
+
+.actionHeading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.notificationList {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.notificationCard {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+}
+
+.notificationCard.isUnread {
+  box-shadow: inset 4px 0 0 #f2b84b;
+}
+
+.notificationCard.isRead {
+  opacity: 0.78;
+}
+
+.notificationCard h2 {
+  margin: 0.25rem 0;
+  font-size: 1.05rem;
+}
+
+.notificationActions {
+  display: flex;
+  gap: 0.65rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.legalPage {
+  max-width: 900px;
+  line-height: 1.75;
+}
+
+.legalPage h1 {
+  margin-bottom: 0.35rem;
+}
+
+.legalPage h2 {
+  margin-top: 2rem;
+  margin-bottom: 0.45rem;
+  font-size: 1.2rem;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 2rem;
+}
+
+@media (max-width: 720px) {
+  .actionHeading,
+  .notificationCard {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .notificationActions {
+    justify-content: flex-start;
+  }
+
+  .notificationButton {
+    padding: 0.5rem;
+  }
+}
