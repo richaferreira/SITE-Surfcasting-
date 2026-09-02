@@ -17,14 +17,14 @@ def main() -> None:
             WITH b, count(w) AS windCount
             WITH count(b) AS beaches,
                  sum(CASE WHEN windCount > 0 THEN 1 ELSE 0 END) AS connectedBeaches
-            CALL { MATCH (s:Species) RETURN count(s) AS species }
-            CALL {
+            CALL () { MATCH (s:Species) RETURN count(s) AS species }
+            CALL () {
                 MATCH (t:Technique)
                 OPTIONAL MATCH (t)-[:USES_EQUIPMENT]->(e:Equipment)
                 WITH t, count(e) AS equipmentCount
                 RETURN count(t) AS techniques, min(equipmentCount) AS minEquipmentPerTechnique
             }
-            CALL { MATCH (e:Equipment) RETURN count(e) AS equipment }
+            CALL () { MATCH (e:Equipment) RETURN count(e) AS equipment }
             RETURN beaches, connectedBeaches, species, techniques,
                    minEquipmentPerTechnique, equipment
             """,
@@ -58,10 +58,7 @@ def main() -> None:
         if failures:
             raise RuntimeError("Seed Neo4j incompleto: " + "; ".join(failures))
 
-        print(
-            "GRAPH_OK "
-            + " ".join(f"{key}={value}" for key, value in values.items())
-        )
+        print("GRAPH_OK " + " ".join(f"{key}={value}" for key, value in values.items()))
     finally:
         driver.close()
 
