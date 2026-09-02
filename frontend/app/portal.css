@@ -158,7 +158,8 @@
 .formStack textarea,
 .formStack select,
 .tableWrap select,
-.inlineComment input {
+.inlineComment input,
+.contentStatusRow select {
   width: 100%;
   border: 1px solid var(--line);
   background: rgba(3, 14, 22, 0.78);
@@ -172,10 +173,26 @@
 .formStack input:focus,
 .formStack textarea:focus,
 .formStack select:focus,
-.inlineComment input:focus { border-color: rgba(53, 214, 221, 0.6); }
+.inlineComment input:focus,
+.contentStatusRow select:focus { border-color: rgba(53, 214, 221, 0.6); }
 
 .formButton { border: 0; cursor: pointer; margin-top: 4px; }
 .formButton:disabled { opacity: 0.6; cursor: wait; }
+.secondaryButton { cursor: pointer; }
+
+.dangerButton {
+  min-height: 42px;
+  border: 1px solid rgba(255, 128, 108, 0.34);
+  border-radius: 12px;
+  background: rgba(255, 128, 108, 0.08);
+  color: #ffd0c9;
+  padding: 0 14px;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.dangerButton:hover { background: rgba(255, 128, 108, 0.15); }
 
 .errorNotice { border-color: rgba(255, 128, 108, 0.36); color: #ffd0c9; }
 .successNotice { border-color: rgba(53, 214, 221, 0.34); color: #bdfcff; }
@@ -184,6 +201,7 @@
 .detailList div { display: flex; justify-content: space-between; gap: 20px; padding: 13px 0; border-bottom: 1px solid var(--line); }
 .detailList dt { color: var(--muted); }
 .detailList dd { margin: 0; text-align: right; }
+.profileAdminLink { margin-top: 18px; }
 
 .beachHeroHeading { max-width: none; }
 .scoreMini { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 4px; width: fit-content; border: 1px solid var(--line); background: var(--cyan-soft); border-radius: 20px; padding: 16px 18px; }
@@ -200,6 +218,54 @@
 .compactItem { display: flex; justify-content: space-between; gap: 12px; }
 .riskText { color: var(--danger) !important; }
 .muted { color: var(--muted); }
+
+.mapPanel,
+.forecastPanel { margin-bottom: 20px; }
+.beachMap {
+  width: 100%;
+  height: clamp(320px, 52vw, 520px);
+  margin-top: 18px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  overflow: hidden;
+  background: #091a24;
+  z-index: 1;
+}
+.beachMap .leaflet-control-attribution { font-size: 10px; }
+.beachMap .leaflet-popup-content-wrapper,
+.beachMap .leaflet-popup-tip { color: #07131d; }
+
+.forecastScroller {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(205px, 235px);
+  gap: 12px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding: 18px 2px 8px;
+  scroll-snap-type: x proximity;
+}
+
+.forecastCard {
+  scroll-snap-align: start;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255,255,255,0.025);
+  padding: 16px;
+  display: grid;
+  gap: 8px;
+}
+
+.forecastCard time { color: var(--muted); font-size: 12px; text-transform: capitalize; }
+.forecastCard > strong { color: var(--cyan); font-size: 34px; line-height: 1; }
+.forecastCard > strong small { color: var(--muted); font-size: 12px; }
+.forecastCard > span { color: #d8e8ef; font-size: 13px; }
+.forecastCard dl { display: grid; gap: 7px; margin: 6px 0 0; }
+.forecastCard dl div { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; }
+.forecastCard dt { color: var(--muted); }
+.forecastCard dd { margin: 0; }
+.recommendationItem p { margin: 9px 0 2px; }
+.beachInfoColumns { align-items: start; }
 
 .communityHeading { max-width: none; }
 .feedColumn,
@@ -222,6 +288,10 @@
 .inlineComment button { border: 0; border-radius: 12px; background: var(--cyan); color: #03151a; padding: 0 14px; font-weight: 800; cursor: pointer; }
 
 .adminMetrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+.adminForms,
+.adminContentPanel,
+.adminBeachManager,
+.adminModerationColumns { margin-top: 20px; }
 .tablePanel { margin-top: 20px; }
 .panelHeading h2 { margin: 5px 0 0; }
 .panelHeading > span { color: var(--muted); font-size: 13px; }
@@ -233,10 +303,102 @@ td strong, td small { display: block; }
 td small { color: var(--muted); margin-top: 3px; }
 .tableWrap select { min-width: 110px; padding: 8px; }
 
+.adminBeachGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.adminBeachCard {
+  display: grid;
+  gap: 9px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255,255,255,0.025);
+  padding: 16px;
+  transition: border-color 160ms ease, transform 160ms ease;
+}
+.adminBeachCard:hover { border-color: rgba(53,214,221,0.42); transform: translateY(-2px); }
+.adminBeachCard > div { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.adminBeachCard span,
+.adminBeachCard small { color: var(--muted); }
+.adminBeachCard b { color: var(--cyan); font-size: 13px; }
+
+.checkboxLabel {
+  grid-template-columns: auto 1fr !important;
+  align-items: center;
+  justify-content: start;
+}
+.checkboxLabel input { width: 18px; height: 18px; accent-color: var(--cyan); }
+
+.contentEditorList,
+.spotEditorList,
+.moderationList { display: grid; gap: 12px; margin-top: 18px; }
+
+.contentEditor,
+.spotEditor {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255,255,255,0.025);
+  overflow: hidden;
+}
+
+.contentEditor summary,
+.spotEditor summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px;
+  cursor: pointer;
+}
+.contentEditor summary::-webkit-details-marker,
+.spotEditor summary::-webkit-details-marker { display: none; }
+.contentEditor summary > span:first-child,
+.spotEditor summary > span:first-child { display: grid; gap: 4px; }
+.contentEditor summary small,
+.spotEditor summary small,
+.contentEditor summary > span:last-child,
+.spotEditor summary > span:last-child { color: var(--muted); }
+.contentEditor[open] summary,
+.spotEditor[open] summary { border-bottom: 1px solid var(--line); }
+.contentEditor > form,
+.spotEditor > form { padding: 16px; }
+
+.contentStatusRow {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 16px 16px 0;
+}
+.contentStatusRow label { display: grid; gap: 6px; min-width: min(100%, 220px); color: #d9e6ed; font-size: 13px; font-weight: 700; }
+
+.moderationItem {
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  padding: 15px;
+  background: rgba(255,255,255,0.025);
+}
+.moderationItem > div { display: flex; justify-content: space-between; gap: 10px; }
+.moderationItem > div span,
+.moderationItem > small { color: var(--muted); font-size: 12px; }
+.moderationItem p { margin: 9px 0 12px; }
+.moderationButton { min-height: 40px; padding: 0 14px; }
+
+.adminEditor { margin-bottom: 20px; }
+.adminSpotColumns { align-items: start; }
+.formActions { display: flex; gap: 10px; flex-wrap: wrap; }
+.formActions .formButton { flex: 1 1 180px; }
+
 @media (min-width: 700px) {
   .cardGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .formGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .adminMetrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .adminBeachGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .beachHeroHeading,
   .communityHeading { display: flex; flex-direction: row; justify-content: space-between; align-items: end; gap: 30px; }
 }
@@ -247,6 +409,8 @@ td small { color: var(--muted); margin-top: 3px; }
   .communityLayout { grid-template-columns: minmax(0, 1.55fr) minmax(300px, 0.75fr); align-items: start; }
   .cardGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .adminMetrics { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .adminBeachGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .adminModerationColumns { grid-template-columns: minmax(0, 1.35fr) minmax(340px, 0.65fr); align-items: start; }
 }
 
 @media (max-width: 560px) {
@@ -255,4 +419,7 @@ td small { color: var(--muted); margin-top: 3px; }
   .panel { padding: 18px; border-radius: 18px; }
   .inlineComment { grid-template-columns: 1fr; }
   .inlineComment button { min-height: 42px; }
+  .contentStatusRow { align-items: stretch; }
+  .contentStatusRow label,
+  .contentStatusRow .dangerButton { width: 100%; }
 }
