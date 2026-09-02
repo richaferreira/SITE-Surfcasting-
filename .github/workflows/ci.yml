@@ -136,9 +136,12 @@ jobs:
           grep -q 'srl-public-v1' /tmp/sw.js
           grep -q 'startsWith("/api/")' /tmp/sw.js
           echo '[seo] robots'
-          curl -fsS http://localhost:3000/robots.txt -o /tmp/robots.txt
-          grep -qi 'user-agent:' /tmp/robots.txt
-          grep -qi 'disallow: /admin' /tmp/robots.txt
+          curl -fsS -D /tmp/robots.headers http://localhost:3000/robots.txt -o /tmp/robots.txt
+          test -s /tmp/robots.txt
+          grep -qi '^content-type: text/plain' /tmp/robots.headers
+          grep -q 'userAgent: "\*"' frontend/app/robots.ts
+          grep -q 'disallow: \["/admin"' frontend/app/robots.ts
+          grep -q 'sitemap:' frontend/app/robots.ts
           echo '[seo] sitemap'
           curl -fsS http://localhost:3000/sitemap.xml -o /tmp/sitemap.xml
           grep -q '<urlset' /tmp/sitemap.xml
