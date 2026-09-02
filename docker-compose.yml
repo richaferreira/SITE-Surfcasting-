@@ -42,14 +42,17 @@ services:
       - /bin/bash
       - -c
       - |
-          set -e
-          until cypher-shell -a bolt://neo4j:7687 -u ${NEO4J_USER:-neo4j} -p ${NEO4J_PASSWORD:-surfcasting_dev} "RETURN 1" >/dev/null 2>&1; do
-            echo "Aguardando Bolt do Neo4j..."
+          set -euo pipefail
+          until cypher-shell -a bolt://neo4j:7687 -u ${NEO4J_USER:-neo4j} -p ${NEO4J_PASSWORD:-surfcasting_dev} -d neo4j "RETURN 1" >/dev/null 2>&1; do
+            echo "Aguardando banco neo4j via Bolt..."
             sleep 2
           done
-          echo "Carregando grafo inicial..."
-          cypher-shell -a bolt://neo4j:7687 -u ${NEO4J_USER:-neo4j} -p ${NEO4J_PASSWORD:-surfcasting_dev} -f /scripts/001_fishing_recommendation.cypher
-          echo "Grafo inicial carregado."
+          echo "Carregando grafo inicial no banco neo4j..."
+          cypher-shell -a bolt://neo4j:7687 -u ${NEO4J_USER:-neo4j} -p ${NEO4J_PASSWORD:-surfcasting_dev} -d neo4j -f /scripts/001_fishing_recommendation.cypher
+          VERIFY_OUTPUT="$$(cypher-shell -a bolt://neo4j:7687 -u ${NEO4J_USER:-neo4j} -p ${NEO4J_PASSWORD:-surfcasting_dev} -d neo4j --format plain "MATCH (species:Species {name: 'Anchova'})-[:RECOMMENDS_TECHNIQUE]->(technique:Technique {key: 'SURF_SPINNING'}) OPTIONAL MATCH (technique)-[:USES_EQUIPMENT]->(equipment:Equipment) WITH count(DISTINCT technique) AS techniques, count(DISTINCT equipment) AS equipment RETURN CASE WHEN techniques = 1 AND equipment >= 3 THEN 'GRAPH_OK' ELSE 'GRAPH_BAD_' + toString(techniques) + '_' + toString(equipment) END AS verification;")"
+          echo "$$VERIFY_OUTPUT"
+          echo "$$VERIFY_OUTPUT" | grep -q "GRAPH_OK"
+          echo "Grafo inicial carregado e verificado."
     volumes:
       - ./database/neo4j:/scripts:ro
     restart: "no"
