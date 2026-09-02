@@ -4,6 +4,7 @@ import "./globals.css";
 import "./portal.css";
 import "./launch-ready.css";
 
+import AnalyticsTracker from "../components/AnalyticsTracker";
 import PWARegister from "../components/PWARegister";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
@@ -46,6 +47,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="pt-BR">
       <body>
         {children}
+        <AnalyticsTracker />
         <PWARegister />
       </body>
     </html>
