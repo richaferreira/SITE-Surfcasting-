@@ -43,7 +43,9 @@ docker compose -f "${COMPOSE_FILE}" up -d neo4j backend frontend
 
 echo "[restore] validando readiness"
 for attempt in $(seq 1 30); do
-  if curl --fail --silent http://localhost:8000/health/ready >/dev/null 2>&1; then
+  if docker compose -f "${COMPOSE_FILE}" exec -T backend python -c \
+    "import requests; requests.get('http://localhost:8000/health/ready', timeout=3).raise_for_status()" \
+    >/dev/null 2>&1; then
     echo "[restore] restauração concluída e validada"
     exit 0
   fi
